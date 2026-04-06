@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caverna Procedural FPS</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="hud">
+    <div class="chip" id="seedChip">Seed: --</div>
+    <div class="chip" id="controlChip"><span class="muted">Controles:</span> WASD · mouse · Shift · Espaço · L · 1 · clique · E · I · M</div>
+    <div class="chip" id="modeChip">Modo: clique para travar a câmera</div>
+    <div class="chip" id="inventoryChip">Inventário: Fe 0 · Cu 0 · Am 0 · Sa 0 · Au 0</div>
+    <div class="chip" id="miningChip">Mineração: equipe a picareta no 1</div>
+    <div class="chip" id="testChip">Autotestes: pendente</div>
+  </div>
+
+  <div id="minimapShell" aria-hidden="true">
+    <canvas id="minimapCanvas" width="208" height="208"></canvas>
+  </div>
+  <div id="minimapLabel">Mapa local · M expande</div>
+
+  <div id="bigMap" aria-hidden="true">
+    <div id="bigMapPanel">
+      <div id="bigMapHeader">
+        <span>Mapa explorado</span>
+        <span class="muted">M para fechar</span>
+      </div>
+      <canvas id="bigMapCanvas" width="620" height="620"></canvas>
+    </div>
+  </div>
+
+  <div id="inventoryPanel" class="modal-panel" aria-hidden="true">
+    <div class="modal-window" id="inventoryWindow">
+      <div class="modal-header" id="inventoryHeader">
+        <span>Inventário</span>
+        <span class="muted">I para fechar</span>
+      </div>
+      <div class="modal-grid" id="inventoryGrid" aria-label="Inventário de minérios"></div>
+    </div>
+  </div>
+
+  <div id="chestPanel" class="modal-panel" aria-hidden="true">
+    <div class="modal-window">
+      <div class="modal-header">
+        <span>Baú da base</span>
+        <span class="muted">E ou Esc para fechar</span>
+      </div>
+      <div class="modal-toolbar">
+        <button id="transferAllButton" class="button">Transferir tudo</button>
+        <span class="muted">Guarde tudo ou só parte do que está carregando.</span>
+      </div>
+      <div id="chestGrid" class="storage-grid" aria-label="Conteúdo do baú"></div>
+    </div>
+  </div>
+
+  <div id="upgradePanel" class="modal-panel" aria-hidden="true">
+    <div class="modal-window">
+      <div class="modal-header">
+        <span>Mesa de melhorias</span>
+        <span class="muted">E ou Esc para fechar</span>
+      </div>
+      <div class="upgrade-layout">
+        <div class="upgrade-summary">
+          <div class="summary-card">
+            <span class="summary-label">Picareta</span>
+            <strong class="summary-value" id="pickaxeLevelValue">Nível 1</strong>
+            <span class="summary-note" id="pickaxeDamageValue">Dano 1</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Lanterna</span>
+            <strong class="summary-value" id="flashlightLevelValue">Nível 1</strong>
+            <span class="summary-note" id="flashlightPowerValue">Feixe base</span>
+          </div>
+        </div>
+        <div class="upgrade-actions">
+          <button id="upgradePickaxeButton" class="button">Melhorar Picareta (Custo: 10 Ferrita)</button>
+          <button id="upgradeFlashlightButton" class="button secondary">Melhorar Lanterna (Custo: 5 Cobre vivo)</button>
+          <p class="muted" id="upgradeHint">A mesa usa recursos do inventário e do baú.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hotbar" aria-label="Barra de itens">
+    <div class="slot" data-slot="1">
+      <span class="slot-num">1</span>
+      <span class="slot-label">Picareta</span>
+    </div>
+    <div class="slot slot-empty" data-slot="2">
+      <span class="slot-num">2</span>
+      <span class="slot-label">Vazio</span>
+    </div>
+    <div class="slot slot-empty" data-slot="3">
+      <span class="slot-num">3</span>
+      <span class="slot-label">Vazio</span>
+    </div>
+    <div class="slot slot-empty" data-slot="4">
+      <span class="slot-num">4</span>
+      <span class="slot-label">Vazio</span>
+    </div>
+    <div class="slot slot-empty" data-slot="5">
+      <span class="slot-num">5</span>
+      <span class="slot-label">Vazio</span>
+    </div>
+  </div>
+
+  <div id="crosshair"></div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
