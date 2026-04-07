@@ -8,30 +8,45 @@ const inventoryChip = document.getElementById('inventoryChip');
 const miningChip = document.getElementById('miningChip');
 const testChip = document.getElementById('testChip');
 const hotbarSlots = [...document.querySelectorAll('#hotbar .slot')];
+const minimapShell = document.getElementById('minimapShell');
 const minimapCanvas = document.getElementById('minimapCanvas');
 const minimapCtx = minimapCanvas.getContext('2d');
+const minimapLabel = document.getElementById('minimapLabel');
 const bigMap = document.getElementById('bigMap');
 const bigMapCanvas = document.getElementById('bigMapCanvas');
 const bigMapCtx = bigMapCanvas.getContext('2d');
+const bigMapCloseButton = document.getElementById('bigMapCloseButton');
 const inventoryPanel = document.getElementById('inventoryPanel');
 const inventoryGrid = document.getElementById('inventoryGrid');
+const inventoryCloseButton = document.getElementById('inventoryCloseButton');
 const chestPanel = document.getElementById('chestPanel');
 const chestGrid = document.getElementById('chestGrid');
 const transferAllButton = document.getElementById('transferAllButton');
+const chestCloseButton = document.getElementById('chestCloseButton');
 const upgradePanel = document.getElementById('upgradePanel');
 const upgradePickaxeButton = document.getElementById('upgradePickaxeButton');
 const upgradeFlashlightButton = document.getElementById('upgradeFlashlightButton');
+const upgradeCloseButton = document.getElementById('upgradeCloseButton');
 const pickaxeLevelValue = document.getElementById('pickaxeLevelValue');
 const pickaxeDamageValue = document.getElementById('pickaxeDamageValue');
 const flashlightLevelValue = document.getElementById('flashlightLevelValue');
 const flashlightPowerValue = document.getElementById('flashlightPowerValue');
 const upgradeHint = document.getElementById('upgradeHint');
+const mobileHud = document.getElementById('mobileHud');
+const mobileInventoryButton = document.getElementById('mobileInventoryButton');
+const mobileLeftPad = document.getElementById('mobileLeftPad');
+const mobileRightPad = document.getElementById('mobileRightPad');
+const mobileActionButton = document.getElementById('mobileActionButton');
+const mobileActionLabel = mobileActionButton.querySelector('.action-label');
+const mobileActionNote = mobileActionButton.querySelector('.action-note');
+const mobileLeftKnob = mobileLeftPad.querySelector('.mobile-stick-knob');
+const mobileRightKnob = mobileRightPad.querySelector('.mobile-stick-knob');
 const panelMap = {
   inventory: inventoryPanel,
   chest: chestPanel,
   upgrades: upgradePanel,
 };
-controlChip.innerHTML = '<span class="muted">Controles:</span> WASD | mouse | Shift | Espaco | L | 1 | clique | E | I | M';
+const coarsePointerQuery = window.matchMedia('(pointer: coarse)');
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -73,6 +88,40 @@ const keyState = {
       left: false,
       right: false,
       sprint: false,
+    };
+
+const mobileState = {
+      enabled: false,
+      lookSensitivity: 0.0092,
+      dragSensitivity: 0.0072,
+      left: {
+        active: false,
+        id: null,
+        centerX: 0,
+        centerY: 0,
+        maxRadius: 44,
+        x: 0,
+        y: 0,
+      },
+      right: {
+        active: false,
+        id: null,
+        centerX: 0,
+        centerY: 0,
+        maxRadius: 42,
+        x: 0,
+        y: 0,
+        lastX: 0,
+        lastY: 0,
+      },
+      drag: {
+        active: false,
+        id: null,
+        lastX: 0,
+        lastY: 0,
+      },
+      actionTouchId: null,
+      actionHeld: false,
     };
 
 const itemState = {
@@ -392,6 +441,196 @@ const world = {
       camera.rotation.z = 0;
     }
 
+    function updateControlChip() {
+      if (mobileState.enabled) {
+        controlChip.innerHTML = '<span class="muted">Controles:</span> move | olha | acao | inv | mapa';
+        return;
+      }
+      controlChip.innerHTML = '<span class="muted">Controles:</span> WASD | mouse | Shift | Espaco | L | 1 | clique | E | I | M';
+    }
+
+    function applyLookDelta(deltaX, deltaY, sensitivity) {
+      lookState.yaw -= deltaX * sensitivity;
+      lookState.pitch = clampPitch(lookState.pitch - deltaY * sensitivity);
+      applyLook();
+    }
+
+    function setStickKnob(knobElement, x, y) {
+      knobElement.style.setProperty('--knob-x', `${x.toFixed(1)}px`);
+      knobElement.style.setProperty('--knob-y', `${y.toFixed(1)}px`);
+    }
+
+    function resetMobileLeftStick() {
+      mobileState.left.active = false;
+      mobileState.left.id = null;
+      mobileState.left.x = 0;
+      mobileState.left.y = 0;
+      setStickKnob(mobileLeftKnob, 0, 0);
+      mobileLeftPad.classList.remove('active');
+      mobileLeftPad.setAttribute('aria-hidden', 'true');
+      mobileLeftPad.style.setProperty('--pad-x', '-999px');
+      mobileLeftPad.style.setProperty('--pad-y', '-999px');
+    }
+
+    function resetMobileRightStick() {
+      mobileState.right.active = false;
+      mobileState.right.id = null;
+      mobileState.right.x = 0;
+      mobileState.right.y = 0;
+      setStickKnob(mobileRightKnob, 0, 0);
+      mobileRightPad.classList.remove('active');
+      mobileRightPad.setAttribute('aria-hidden', 'true');
+    }
+
+    function resetMobileControls() {
+      resetMobileLeftStick();
+      resetMobileRightStick();
+      resetMobileLookDrag();
+      mobileState.actionTouchId = null;
+      mobileState.actionHeld = false;
+    }
+
+    function resetMobileLookDrag() {
+      mobileState.drag.active = false;
+      mobileState.drag.id = null;
+      mobileState.drag.lastX = 0;
+      mobileState.drag.lastY = 0;
+    }
+
+    function getStickRadius(stickElement) {
+      const rect = stickElement.getBoundingClientRect();
+      return Math.max(28, rect.width * 0.34);
+    }
+
+    function updateLeftStickPosition(clientX, clientY) {
+      const dx = clientX - mobileState.left.centerX;
+      const dy = clientY - mobileState.left.centerY;
+      const distance = Math.hypot(dx, dy);
+      const clampedDistance = Math.min(distance, mobileState.left.maxRadius);
+      const factor = distance > 0 ? clampedDistance / distance : 0;
+      mobileState.left.x = dx * factor;
+      mobileState.left.y = dy * factor;
+      setStickKnob(mobileLeftKnob, mobileState.left.x, mobileState.left.y);
+    }
+
+    function beginMobileLeftStick(touch) {
+      mobileState.left.active = true;
+      mobileState.left.id = touch.identifier;
+      mobileState.left.centerX = touch.clientX;
+      mobileState.left.centerY = touch.clientY;
+      mobileState.left.maxRadius = getStickRadius(mobileLeftPad);
+      mobileLeftPad.style.setProperty('--pad-x', `${touch.clientX}px`);
+      mobileLeftPad.style.setProperty('--pad-y', `${touch.clientY}px`);
+      mobileLeftPad.classList.add('active');
+      mobileLeftPad.setAttribute('aria-hidden', 'false');
+      updateLeftStickPosition(touch.clientX, touch.clientY);
+    }
+
+    function beginMobileRightStick(touch) {
+      const rect = mobileRightPad.getBoundingClientRect();
+      mobileState.right.active = true;
+      mobileState.right.id = touch.identifier;
+      mobileState.right.centerX = rect.left + rect.width / 2;
+      mobileState.right.centerY = rect.top + rect.height / 2;
+      mobileState.right.lastX = touch.clientX;
+      mobileState.right.lastY = touch.clientY;
+      mobileState.right.maxRadius = getStickRadius(mobileRightPad);
+      mobileRightPad.classList.add('active');
+      mobileRightPad.setAttribute('aria-hidden', 'false');
+      updateMobileRightStick(touch);
+    }
+
+    function beginMobileLookDrag(touch) {
+      mobileState.drag.active = true;
+      mobileState.drag.id = touch.identifier;
+      mobileState.drag.lastX = touch.clientX;
+      mobileState.drag.lastY = touch.clientY;
+    }
+
+    function updateMobileRightStick(touch) {
+      const dx = touch.clientX - mobileState.right.centerX;
+      const dy = touch.clientY - mobileState.right.centerY;
+      const distance = Math.hypot(dx, dy);
+      const clampedDistance = Math.min(distance, mobileState.right.maxRadius);
+      const factor = distance > 0 ? clampedDistance / distance : 0;
+      mobileState.right.x = dx * factor;
+      mobileState.right.y = dy * factor;
+      setStickKnob(mobileRightKnob, mobileState.right.x, mobileState.right.y);
+
+      if (itemState.gameActive && !itemState.inventoryOpen && !itemState.mapOpen) {
+        applyLookDelta(
+          touch.clientX - mobileState.right.lastX,
+          touch.clientY - mobileState.right.lastY,
+          mobileState.lookSensitivity
+        );
+      }
+
+      mobileState.right.lastX = touch.clientX;
+      mobileState.right.lastY = touch.clientY;
+    }
+
+    function updateMobileLookDrag(touch) {
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return;
+      applyLookDelta(
+        touch.clientX - mobileState.drag.lastX,
+        touch.clientY - mobileState.drag.lastY,
+        mobileState.dragSensitivity
+      );
+      mobileState.drag.lastX = touch.clientX;
+      mobileState.drag.lastY = touch.clientY;
+    }
+
+    function shouldUseMobileLayout() {
+      const hasTouch = coarsePointerQuery.matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+      return hasTouch && window.innerWidth <= 1024;
+    }
+
+    function isTouchOverInteractiveUi(target) {
+      return Boolean(target?.closest(
+        '#mobileInventoryButton, #mobileActionButton, #mobileRightPad, #hotbar, #minimapShell, #minimapLabel, #bigMap, .modal-window, .modal-header, .modal-toolbar, .panel-close-button'
+      ));
+    }
+
+    function canStartMobileLeftStick(touch) {
+      if (!mobileState.enabled || mobileState.left.active) return false;
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return false;
+      if (touch.clientX > window.innerWidth * 0.58) return false;
+      if (touch.clientY < window.innerHeight * 0.16) return false;
+      if (isTouchOverInteractiveUi(touch.target)) return false;
+      return true;
+    }
+
+    function canStartMobileLookDrag(touch) {
+      if (!mobileState.enabled || mobileState.drag.active) return false;
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return false;
+      if (isTouchOverInteractiveUi(touch.target)) return false;
+      return true;
+    }
+
+    function updateResponsiveLayout() {
+      const enabled = shouldUseMobileLayout();
+      mobileState.enabled = enabled;
+      document.body.classList.toggle('mobile-layout', enabled);
+      mobileHud.setAttribute('aria-hidden', String(!enabled));
+      resetMobileControls();
+
+      if (enabled) {
+        lookState.preferPointerLock = false;
+        lookState.fallbackOnly = true;
+        lookState.lastPointerError = '';
+        if (document.pointerLockElement === document.body) {
+          document.exitPointerLock();
+        }
+      } else {
+        lookState.preferPointerLock = true;
+        lookState.fallbackOnly = false;
+      }
+
+      updateControlChip();
+      updateModeChip();
+      updateMiningHud();
+    }
+
     function updateModeChip() {
       if (uiState.activePanel === 'inventory') {
         modeChip.textContent = 'Modo: inventario aberto';
@@ -407,6 +646,10 @@ const world = {
       }
       if (!itemState.gameActive) {
         modeChip.textContent = 'Modo: pausa';
+        return;
+      }
+      if (mobileState.enabled) {
+        modeChip.textContent = 'Modo: controle touch';
         return;
       }
       if (lookState.pointerLockActive) {
@@ -452,12 +695,12 @@ const world = {
     });
 
     document.addEventListener('mousedown', (event) => {
-      if (!itemState.gameActive || itemState.inventoryOpen) return;
+      if (mobileState.enabled || !itemState.gameActive || itemState.inventoryOpen) return;
       if (event.button !== 0) return;
 
       const hoveredObject = getHoveredObject();
       const hoveredType = hoveredObject?.object?.userData?.type;
-      if (hoveredType === 'homeDoor' || hoveredType === 'returnPortal') {
+      if (hoveredType === 'homeDoor' || hoveredType === 'returnPortal' || hoveredType === 'chest' || hoveredType === 'upgradeTable') {
         handleInteractAction();
         return;
       }
@@ -470,29 +713,59 @@ const world = {
     });
 
     document.addEventListener('mouseup', (event) => {
+      if (mobileState.enabled) return;
       if (event.button === 0) miningState.holdActive = false;
       lookState.isDragging = false;
     });
 
     document.addEventListener('mouseleave', () => {
+      if (mobileState.enabled) return;
       miningState.holdActive = false;
       lookState.isDragging = false;
     });
 
     document.addEventListener('mousemove', (event) => {
-      if (!itemState.gameActive || itemState.inventoryOpen) return;
+      if (mobileState.enabled || !itemState.gameActive || itemState.inventoryOpen) return;
       const shouldApply = lookState.pointerLockActive || lookState.isDragging;
       if (!shouldApply) return;
 
       const sensitivity = lookState.pointerLockActive ? lookState.sensitivity : lookState.dragSensitivity;
-      lookState.yaw -= event.movementX * sensitivity;
-      lookState.pitch = clampPitch(lookState.pitch - event.movementY * sensitivity);
-      applyLook();
+      applyLookDelta(event.movementX, event.movementY, sensitivity);
     });
     function updateHotbar() {
       hotbarSlots.forEach((slot, index) => {
         slot.classList.toggle('selected', itemState.equippedSlot === index);
       });
+    }
+
+    function getPrimaryActionState({ hoveredObject = getHoveredObject(), targetOreHit = getTargetOreNode() } = {}) {
+      const hoveredType = hoveredObject?.object?.userData?.type;
+
+      if (hoveredType === 'homeDoor') {
+        return { type: 'interact', label: 'Entrar', note: 'caverna' };
+      }
+      if (hoveredType === 'returnPortal') {
+        return { type: 'interact', label: 'Voltar', note: 'base' };
+      }
+      if (hoveredType === 'chest') {
+        return { type: 'interact', label: 'Abrir bau', note: 'guardar' };
+      }
+      if (hoveredType === 'upgradeTable') {
+        return { type: 'interact', label: 'Usar bancada', note: 'melhorar' };
+      }
+      if (itemState.equippedSlot !== 0) {
+        return { type: 'equip-pickaxe', label: 'Picareta', note: 'equipar' };
+      }
+      if (targetOreHit?.node) {
+        return { type: 'mine', label: 'Minerar', note: targetOreHit.node.definition.short };
+      }
+      return { type: 'mine', label: 'Picareta', note: 'acao' };
+    }
+
+    function updateMobileActionButton(actionState = getPrimaryActionState()) {
+      mobileActionLabel.textContent = actionState.label;
+      mobileActionNote.textContent = actionState.note;
+      mobileActionButton.setAttribute('aria-label', actionState.label);
     }
 
     function equipSlot(slotIndex) {
@@ -504,6 +777,13 @@ const world = {
       updateHotbar();
       saveGame();
     }
+
+    hotbarSlots.forEach((slot, index) => {
+      slot.addEventListener('click', () => {
+        equipSlot(index);
+        updateMiningHud();
+      });
+    });
 
     function updateInventoryChip() {
       inventoryChip.textContent = `Inventario: ${oreDefinitions.map((definition) => `${definition.short} ${inventoryState.totals[definition.id]}`).join(' | ')}`;
@@ -682,8 +962,15 @@ const world = {
       if (!itemState.mapOpen && itemState.inventoryOpen) {
         closeActivePanel();
       }
+      if (!itemState.mapOpen) {
+        clearMovementState();
+        resetMobileControls();
+      }
       itemState.mapOpen = !itemState.mapOpen;
+      document.body.classList.toggle('map-open', itemState.mapOpen);
       bigMap.classList.toggle('visible', itemState.mapOpen);
+      bigMap.setAttribute('aria-hidden', String(!itemState.mapOpen));
+      updateMiningHud();
     }
 
     function setActivePanel(panelName) {
@@ -702,6 +989,7 @@ const world = {
       if (!panelMap[panelName]) return;
       miningState.holdActive = false;
       clearMovementState();
+      resetMobileControls();
       lookState.isDragging = false;
       if (itemState.mapOpen) toggleBigMap();
       if (document.pointerLockElement === document.body) {
@@ -717,6 +1005,7 @@ const world = {
       setActivePanel(null);
       itemState.gameActive = true;
       updateModeChip();
+      updateMiningHud();
     }
 
     function toggleInventory() {
@@ -749,6 +1038,22 @@ const world = {
         areaState.currentArea = 'home';
         rebuildWorld();
       }
+    }
+
+    function triggerPrimaryAction() {
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return;
+      const actionState = getPrimaryActionState();
+      if (actionState.type === 'interact') {
+        handleInteractAction();
+        return;
+      }
+      if (actionState.type === 'equip-pickaxe') {
+        equipSlot(0);
+        updateMiningHud();
+        return;
+      }
+      tryMineWithPickaxe();
+      updateMiningHud();
     }
 
     function upgradePickaxe() {
@@ -785,6 +1090,143 @@ const world = {
     upgradeFlashlightButton.addEventListener('click', () => {
       upgradeFlashlight();
     });
+
+    mobileInventoryButton.addEventListener('click', () => {
+      if (!mobileState.enabled) return;
+      toggleInventory();
+    });
+
+    bigMapCloseButton.addEventListener('click', () => {
+      if (itemState.mapOpen) toggleBigMap();
+    });
+
+    for (const closeButton of [inventoryCloseButton, chestCloseButton, upgradeCloseButton]) {
+      closeButton.addEventListener('click', () => {
+        closeActivePanel();
+      });
+    }
+
+    for (const mapTrigger of [minimapShell, minimapLabel]) {
+      mapTrigger.addEventListener('click', () => {
+        if (!mobileState.enabled) return;
+        toggleBigMap();
+      });
+    }
+
+    mobileActionButton.addEventListener('click', (event) => {
+      if (!mobileState.enabled) return;
+      event.preventDefault();
+    });
+
+    mobileActionButton.addEventListener('touchstart', (event) => {
+      if (!mobileState.enabled) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      mobileState.actionTouchId = touch.identifier;
+      mobileState.actionHeld = true;
+      triggerPrimaryAction();
+      event.preventDefault();
+    }, { passive: false });
+
+    function releaseMobileActionTouches(changedTouches) {
+      for (const touch of Array.from(changedTouches)) {
+        if (touch.identifier === mobileState.actionTouchId) {
+          mobileState.actionTouchId = null;
+          mobileState.actionHeld = false;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    mobileRightPad.addEventListener('touchstart', (event) => {
+      if (!mobileState.enabled || mobileState.right.active) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      beginMobileRightStick(touch);
+      event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchstart', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = false;
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (canStartMobileLeftStick(touch)) {
+          beginMobileLeftStick(touch);
+          handled = true;
+        } else if (canStartMobileLookDrag(touch)) {
+          beginMobileLookDrag(touch);
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchmove', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = false;
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (touch.identifier === mobileState.left.id) {
+          updateLeftStickPosition(touch.clientX, touch.clientY);
+          handled = true;
+        } else if (touch.identifier === mobileState.right.id) {
+          updateMobileRightStick(touch);
+          handled = true;
+        } else if (touch.identifier === mobileState.drag.id) {
+          updateMobileLookDrag(touch);
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchend', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = releaseMobileActionTouches(event.changedTouches);
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (touch.identifier === mobileState.left.id) {
+          resetMobileLeftStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.right.id) {
+          resetMobileRightStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.drag.id) {
+          resetMobileLookDrag();
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchcancel', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = releaseMobileActionTouches(event.changedTouches);
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (touch.identifier === mobileState.left.id) {
+          resetMobileLeftStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.right.id) {
+          resetMobileRightStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.drag.id) {
+          resetMobileLookDrag();
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
 
     function getDropPool(definition) {
       let pool = dropMeshPools.get(definition.id);
@@ -1911,33 +2353,39 @@ const world = {
     function updateMiningHud() {
       const hit = getTargetOreNode();
       const hoveredObject = getHoveredObject();
+      const actionState = getPrimaryActionState({ hoveredObject, targetOreHit: hit });
+      const interactHint = mobileState.enabled ? 'use o botao de acao' : 'clique ou pressione E';
+      const mineHint = mobileState.enabled ? 'use o botao Picareta' : 'clique';
       miningState.targetNode = hit ? hit.node : null;
+      updateMobileActionButton(actionState);
       if (hoveredObject?.object?.userData?.type === 'homeDoor') {
-        miningChip.textContent = 'Interacao: clique ou pressione E para entrar na caverna';
+        miningChip.textContent = `Interacao: ${interactHint} para entrar na caverna`;
         return;
       }
       if (hoveredObject?.object?.userData?.type === 'returnPortal') {
-        miningChip.textContent = 'Interacao: clique ou pressione E para voltar para casa';
+        miningChip.textContent = `Interacao: ${interactHint} para voltar para casa`;
         return;
       }
       if (hoveredObject?.object?.userData?.type === 'chest') {
-        miningChip.textContent = 'Interacao: pressione E para abrir o bau';
+        miningChip.textContent = `Interacao: ${interactHint} para abrir o bau`;
         return;
       }
       if (hoveredObject?.object?.userData?.type === 'upgradeTable') {
-        miningChip.textContent = 'Interacao: pressione E para usar a mesa de melhorias';
+        miningChip.textContent = `Interacao: ${interactHint} para usar a mesa de melhorias`;
         return;
       }
       if (itemState.equippedSlot !== 0) {
-        miningChip.textContent = 'MineraÃ§Ã£o: equipe a picareta no 1';
+        miningChip.textContent = mobileState.enabled
+          ? 'Mineracao: toque na Picareta para equipar'
+          : 'Mineracao: equipe a picareta no 1';
         return;
       }
       if (!miningState.targetNode) {
-        miningChip.textContent = 'MineraÃ§Ã£o: mire num node e clique para bater';
+        miningChip.textContent = `Mineracao: mire num node e ${mineHint} para bater`;
         return;
       }
       const node = miningState.targetNode;
-      miningChip.textContent = `MineraÃ§Ã£o: ${node.definition.label} Â· ${node.hp}/${node.maxHp} batidas restantes`;
+      miningChip.textContent = `Mineracao: ${node.definition.label} | ${node.hp}/${node.maxHp} batidas restantes`;
     }
 
     function updateOreAndDrops(delta) {
@@ -2284,7 +2732,7 @@ const world = {
     });
 
     renderer.domElement.addEventListener('click', () => {
-      if (!itemState.gameActive || itemState.inventoryOpen) return;
+      if (mobileState.enabled || !itemState.gameActive || itemState.inventoryOpen) return;
       if (lookState.preferPointerLock && !lookState.pointerLockActive && !lookState.fallbackOnly) {
         tryRequestPointerLock();
       }
@@ -2294,7 +2742,12 @@ const world = {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      updateResponsiveLayout();
     });
+
+    if (typeof coarsePointerQuery.addEventListener === 'function') {
+      coarsePointerQuery.addEventListener('change', updateResponsiveLayout);
+    }
 
     function runSelfTests() {
       const failures = [];
@@ -2411,7 +2864,8 @@ const world = {
     rebuildWorld();
     applyLook();
     itemState.gameActive = true;
-    lookState.preferPointerLock = true;
+    updateControlChip();
+    updateResponsiveLayout();
     updateModeChip();
     updateMiningHud();
     scheduleSelfTests();
@@ -2422,8 +2876,10 @@ const world = {
 
       if (itemState.gameActive && !itemState.inventoryOpen) {
         const moveSpeed = keyState.sprint ? 8.6 : 5.6;
-        const inputForward = (keyState.forward ? 1 : 0) - (keyState.backward ? 1 : 0);
-        const inputRight = (keyState.right ? 1 : 0) - (keyState.left ? 1 : 0);
+        const mobileForward = mobileState.left.maxRadius > 0 ? -mobileState.left.y / mobileState.left.maxRadius : 0;
+        const mobileRight = mobileState.left.maxRadius > 0 ? mobileState.left.x / mobileState.left.maxRadius : 0;
+        const inputForward = THREE.MathUtils.clamp(((keyState.forward ? 1 : 0) - (keyState.backward ? 1 : 0)) + mobileForward, -1, 1);
+        const inputRight = THREE.MathUtils.clamp(((keyState.right ? 1 : 0) - (keyState.left ? 1 : 0)) + mobileRight, -1, 1);
         const length = Math.hypot(inputForward, inputRight);
         const normalizedForward = length > 0 ? inputForward / length : 0;
         const normalizedRight = length > 0 ? inputRight / length : 0;
@@ -2448,6 +2904,9 @@ const world = {
 
         if (miningState.holdActive) {
           tryMineWithPickaxe();
+        }
+        if (mobileState.actionHeld) {
+          triggerPrimaryAction();
         }
       } else {
         velocityForward = damp(velocityForward, 0, 12, delta);
