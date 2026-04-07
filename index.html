@@ -29,11 +29,32 @@
   </div>
   <div id="minimapLabel">Mapa local · M expande</div>
 
+  <div id="mobileHud" aria-hidden="true">
+    <button id="mobileInventoryButton" class="mobile-icon-button" type="button" aria-label="Abrir inventario">
+      <span aria-hidden="true">Inv</span>
+    </button>
+
+    <div id="mobileLeftPad" class="mobile-stick dynamic" aria-hidden="true">
+      <div class="mobile-stick-base"></div>
+      <div class="mobile-stick-knob"></div>
+    </div>
+
+    <div id="mobileRightPad" class="mobile-stick fixed" aria-hidden="true">
+      <div class="mobile-stick-base"></div>
+      <div class="mobile-stick-knob"></div>
+    </div>
+
+    <button id="mobileActionButton" class="mobile-action-button" type="button" aria-label="Usar picareta">
+      <span class="action-label">Picareta</span>
+      <span class="action-note">acao</span>
+    </button>
+  </div>
+
   <div id="bigMap" aria-hidden="true">
     <div id="bigMapPanel">
       <div id="bigMapHeader">
         <span>Mapa explorado</span>
-        <span class="muted">M para fechar</span>
+        <button id="bigMapCloseButton" class="panel-close-button" type="button" aria-label="Fechar mapa">Fechar</button>
       </div>
       <canvas id="bigMapCanvas" width="620" height="620"></canvas>
     </div>
@@ -43,7 +64,7 @@
     <div class="modal-window" id="inventoryWindow">
       <div class="modal-header" id="inventoryHeader">
         <span>Inventário</span>
-        <span class="muted">I para fechar</span>
+        <button id="inventoryCloseButton" class="panel-close-button" type="button" aria-label="Fechar inventario">Fechar</button>
       </div>
       <div class="modal-grid" id="inventoryGrid" aria-label="Inventário de minérios"></div>
     </div>
@@ -53,7 +74,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <span>Baú da base</span>
-        <span class="muted">E ou Esc para fechar</span>
+        <button id="chestCloseButton" class="panel-close-button" type="button" aria-label="Fechar bau">Fechar</button>
       </div>
       <div class="modal-toolbar">
         <button id="transferAllButton" class="button">Transferir tudo</button>
@@ -67,7 +88,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <span>Mesa de melhorias</span>
-        <span class="muted">E ou Esc para fechar</span>
+        <button id="upgradeCloseButton" class="panel-close-button" type="button" aria-label="Fechar melhorias">Fechar</button>
       </div>
       <div class="upgrade-layout">
         <div class="upgrade-summary">
