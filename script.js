@@ -8,30 +8,45 @@ const inventoryChip = document.getElementById('inventoryChip');
 const miningChip = document.getElementById('miningChip');
 const testChip = document.getElementById('testChip');
 const hotbarSlots = [...document.querySelectorAll('#hotbar .slot')];
+const minimapShell = document.getElementById('minimapShell');
 const minimapCanvas = document.getElementById('minimapCanvas');
 const minimapCtx = minimapCanvas.getContext('2d');
+const minimapLabel = document.getElementById('minimapLabel');
 const bigMap = document.getElementById('bigMap');
 const bigMapCanvas = document.getElementById('bigMapCanvas');
 const bigMapCtx = bigMapCanvas.getContext('2d');
+const bigMapCloseButton = document.getElementById('bigMapCloseButton');
 const inventoryPanel = document.getElementById('inventoryPanel');
 const inventoryGrid = document.getElementById('inventoryGrid');
+const inventoryCloseButton = document.getElementById('inventoryCloseButton');
 const chestPanel = document.getElementById('chestPanel');
 const chestGrid = document.getElementById('chestGrid');
 const transferAllButton = document.getElementById('transferAllButton');
+const chestCloseButton = document.getElementById('chestCloseButton');
 const upgradePanel = document.getElementById('upgradePanel');
 const upgradePickaxeButton = document.getElementById('upgradePickaxeButton');
 const upgradeFlashlightButton = document.getElementById('upgradeFlashlightButton');
+const upgradeCloseButton = document.getElementById('upgradeCloseButton');
 const pickaxeLevelValue = document.getElementById('pickaxeLevelValue');
 const pickaxeDamageValue = document.getElementById('pickaxeDamageValue');
 const flashlightLevelValue = document.getElementById('flashlightLevelValue');
 const flashlightPowerValue = document.getElementById('flashlightPowerValue');
 const upgradeHint = document.getElementById('upgradeHint');
+const mobileHud = document.getElementById('mobileHud');
+const mobileInventoryButton = document.getElementById('mobileInventoryButton');
+const mobileLeftPad = document.getElementById('mobileLeftPad');
+const mobileRightPad = document.getElementById('mobileRightPad');
+const mobileActionButton = document.getElementById('mobileActionButton');
+const mobileActionLabel = mobileActionButton.querySelector('.action-label');
+const mobileActionNote = mobileActionButton.querySelector('.action-note');
+const mobileLeftKnob = mobileLeftPad.querySelector('.mobile-stick-knob');
+const mobileRightKnob = mobileRightPad.querySelector('.mobile-stick-knob');
 const panelMap = {
   inventory: inventoryPanel,
   chest: chestPanel,
   upgrades: upgradePanel,
 };
-controlChip.innerHTML = '<span class="muted">Controles:</span> WASD | mouse | Shift | Espaco | L | 1 | clique | E | I | M';
+const coarsePointerQuery = window.matchMedia('(pointer: coarse)');
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -45,15 +60,38 @@ const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x07090c);
     scene.fog = new THREE.FogExp2(0x07090c, 0.043);
 
+const playerRoot = new THREE.Group();
+const cameraPivot = new THREE.Group();
+playerRoot.add(cameraPivot);
+scene.add(playerRoot);
+
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 220);
-    camera.position.set(0, 1.7, 0);
-    scene.add(camera);
+    camera.position.set(0.24, 0.08, 2.78);
+    cameraPivot.add(camera);
 
 const clock = new THREE.Clock();
 const up = new THREE.Vector3(0, 1, 0);
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 const tempVec = new THREE.Vector3();
+const interactionOrigin = new THREE.Vector3();
+const cameraWorldPosition = new THREE.Vector3();
+
+function getPlayerX() {
+  return playerRoot.position.x;
+}
+
+function getPlayerZ() {
+  return playerRoot.position.z;
+}
+
+function getPlayerInteractionOrigin(target = new THREE.Vector3()) {
+  return target.set(
+    getPlayerX(),
+    playerRoot.position.y + world.playerHeight * 0.72,
+    getPlayerZ()
+  );
+}
 
 const lookState = {
       yaw: 0,
@@ -73,6 +111,40 @@ const keyState = {
       left: false,
       right: false,
       sprint: false,
+    };
+
+const mobileState = {
+      enabled: false,
+      lookSensitivity: 0.0092,
+      dragSensitivity: 0.0072,
+      left: {
+        active: false,
+        id: null,
+        centerX: 0,
+        centerY: 0,
+        maxRadius: 44,
+        x: 0,
+        y: 0,
+      },
+      right: {
+        active: false,
+        id: null,
+        centerX: 0,
+        centerY: 0,
+        maxRadius: 42,
+        x: 0,
+        y: 0,
+        lastX: 0,
+        lastY: 0,
+      },
+      drag: {
+        active: false,
+        id: null,
+        lastX: 0,
+        lastY: 0,
+      },
+      actionTouchId: null,
+      actionHeld: false,
     };
 
 const itemState = {
@@ -104,7 +176,7 @@ const miningAimSamples = [
     ];
 
 const interactionState = {
-  range: 3.2,
+  range: 5.4,
 };
 
 const playerState = {
@@ -246,7 +318,7 @@ const miningState = {
       swinging: false,
       lastHitAt: -10,
       hitCooldown: 0.22,
-      range: 3.95,
+      range: 5.8,
       targetNode: null,
       holdActive: false,
     };
@@ -380,16 +452,531 @@ const world = {
     pickaxeModel.rotation.set(0.18, 1.42, 0.18);
     pickaxePivot.add(pickaxeModel);
 
+    function createMinerCharacter() {
+      const materialSet = {
+        skin: new THREE.MeshStandardMaterial({ color: 0xd4956a, roughness: 0.82 }),
+        hair: new THREE.MeshStandardMaterial({ color: 0x2a1a08, roughness: 1 }),
+        beard: new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 1 }),
+        shirt: new THREE.MeshStandardMaterial({ color: 0x3a2a50, roughness: 0.86 }),
+        pants: new THREE.MeshStandardMaterial({ color: 0x1e1428, roughness: 0.92 }),
+        boots: new THREE.MeshStandardMaterial({ color: 0x1a0e06, roughness: 0.92 }),
+        belt: new THREE.MeshStandardMaterial({ color: 0x2a1a08, roughness: 0.75, metalness: 0.25 }),
+        buckle: new THREE.MeshStandardMaterial({ color: 0xd4aa00, roughness: 0.3, metalness: 0.88, emissive: 0xd4aa00, emissiveIntensity: 0.14 }),
+        helmet: new THREE.MeshStandardMaterial({ color: 0x4a3a20, roughness: 0.72, metalness: 0.48 }),
+        helmetRim: new THREE.MeshStandardMaterial({ color: 0xd4aa00, roughness: 0.3, metalness: 0.9, emissive: 0xd4aa00, emissiveIntensity: 0.24 }),
+        lamp: new THREE.MeshStandardMaterial({ color: 0xffee88, emissive: 0xffee88, emissiveIntensity: 1.1, roughness: 0.2 }),
+        pickaxeHandle: new THREE.MeshStandardMaterial({ color: 0x2a1a08, roughness: 0.9 }),
+        pickaxeBlade: new THREE.MeshStandardMaterial({ color: 0x888899, roughness: 0.3, metalness: 0.95, emissive: 0x334466, emissiveIntensity: 0.12 }),
+        eye: new THREE.MeshStandardMaterial({ color: 0x1a0a00, roughness: 1 }),
+        eyeWhite: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }),
+        bag: new THREE.MeshStandardMaterial({ color: 0x2d1a08, roughness: 0.96 }),
+        bagStrap: new THREE.MeshStandardMaterial({ color: 0x1a0e04, roughness: 0.9 }),
+        gemA: new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x00ffcc, emissiveIntensity: 0.6, roughness: 0.1, metalness: 0.8 }),
+        gemB: new THREE.MeshStandardMaterial({ color: 0xff44aa, emissive: 0xff44aa, emissiveIntensity: 0.55, roughness: 0.1, metalness: 0.8 }),
+        kneePad: new THREE.MeshStandardMaterial({ color: 0x252030, roughness: 0.82, metalness: 0.2 }),
+      };
+
+      const container = new THREE.Group();
+      container.position.y = -0.26;
+      container.rotation.y = Math.PI;
+
+      const model = new THREE.Group();
+      container.add(model);
+
+      const box = (w, h, d, material, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        mesh.position.set(px, py, pz);
+        mesh.rotation.set(rx, ry, rz);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      };
+
+      const sphere = (radius, material, px, py, pz) => {
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), material);
+        mesh.position.set(px, py, pz);
+        mesh.castShadow = true;
+        return mesh;
+      };
+
+      const cylinder = (rTop, rBottom, height, segments, material, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, height, segments), material);
+        mesh.position.set(px, py, pz);
+        mesh.rotation.set(rx, ry, rz);
+        mesh.castShadow = true;
+        return mesh;
+      };
+
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 1.55, 0);
+      headGroup.add(box(0.28, 0.3, 0.26, materialSet.skin, 0, 0, 0));
+      headGroup.add(sphere(0.08, materialSet.skin, -0.1, -0.05, 0.1));
+      headGroup.add(sphere(0.08, materialSet.skin, 0.1, -0.05, 0.1));
+      const eyeL = new THREE.Group();
+      eyeL.position.set(-0.085, 0.04, 0.13);
+      eyeL.add(sphere(0.032, materialSet.eyeWhite, 0, 0, 0));
+      eyeL.add(sphere(0.018, materialSet.eye, 0, 0, 0.02));
+      headGroup.add(eyeL);
+      const eyeR = new THREE.Group();
+      eyeR.position.set(0.085, 0.04, 0.13);
+      eyeR.add(sphere(0.032, materialSet.eyeWhite, 0, 0, 0));
+      eyeR.add(sphere(0.018, materialSet.eye, 0, 0, 0.02));
+      headGroup.add(eyeR);
+      headGroup.add(box(0.06, 0.015, 0.01, materialSet.hair, -0.085, 0.095, 0.135, 0, 0, 0.15));
+      headGroup.add(box(0.06, 0.015, 0.01, materialSet.hair, 0.085, 0.095, 0.135, 0, 0, -0.15));
+      headGroup.add(box(0.04, 0.025, 0.04, materialSet.skin, 0, -0.01, 0.145));
+      headGroup.add(box(0.08, 0.018, 0.01, materialSet.beard, 0, -0.06, 0.136));
+      const beard = box(0.22, 0.1, 0.18, materialSet.beard, 0, -0.11, 0.02);
+      beard.scale.set(1, 1, 0.6);
+      headGroup.add(beard);
+      headGroup.add(box(0.3, 0.1, 0.28, materialSet.hair, 0, 0.13, -0.01));
+      headGroup.add(box(0.08, 0.16, 0.1, materialSet.hair, -0.145, 0.04, -0.02));
+      headGroup.add(box(0.08, 0.16, 0.1, materialSet.hair, 0.145, 0.04, -0.02));
+      headGroup.add(box(0.32, 0.14, 0.3, materialSet.helmet, 0, 0.17, 0));
+      headGroup.add(box(0.38, 0.04, 0.34, materialSet.helmet, 0, 0.11, 0));
+      headGroup.add(box(0.34, 0.025, 0.005, materialSet.helmetRim, 0, 0.17, 0.155));
+      const lampGroup = new THREE.Group();
+      lampGroup.position.set(0, 0.19, 0.16);
+      lampGroup.add(box(0.06, 0.05, 0.04, materialSet.helmet, 0, 0, 0));
+      lampGroup.add(sphere(0.028, materialSet.lamp, 0, 0, 0.03));
+      headGroup.add(lampGroup);
+      model.add(headGroup);
+
+      const torsoGroup = new THREE.Group();
+      torsoGroup.position.set(0, 1.05, 0);
+      torsoGroup.add(box(0.32, 0.38, 0.22, materialSet.shirt, 0, 0, 0));
+      torsoGroup.add(box(0.03, 0.35, 0.005, materialSet.belt, -0.07, 0, 0.112, 0, 0, 0.12));
+      torsoGroup.add(box(0.03, 0.35, 0.005, materialSet.belt, 0.07, 0, 0.112, 0, 0, -0.12));
+      torsoGroup.add(box(0.34, 0.045, 0.24, materialSet.belt, 0, -0.175, 0));
+      torsoGroup.add(box(0.04, 0.055, 0.012, materialSet.buckle, 0, -0.175, 0.125));
+      const pocketGroup = new THREE.Group();
+      pocketGroup.position.set(-0.1, 0.05, 0.112);
+      pocketGroup.add(box(0.09, 0.07, 0.01, materialSet.belt, 0, 0, 0));
+      pocketGroup.add(sphere(0.022, materialSet.gemA, 0, 0.01, 0.02));
+      torsoGroup.add(pocketGroup);
+      model.add(torsoGroup);
+
+      const bagGroup = new THREE.Group();
+      bagGroup.position.set(0, 1.08, -0.2);
+      bagGroup.add(box(0.22, 0.28, 0.14, materialSet.bag, 0, 0, 0));
+      bagGroup.add(box(0.04, 0.34, 0.02, materialSet.bagStrap, -0.08, 0.02, 0.08));
+      bagGroup.add(box(0.04, 0.34, 0.02, materialSet.bagStrap, 0.08, 0.02, 0.08));
+      bagGroup.add(sphere(0.022, materialSet.gemA, 0.04, 0.04, 0.08));
+      bagGroup.add(sphere(0.018, materialSet.gemB, -0.04, -0.02, 0.08));
+      model.add(bagGroup);
+
+      const armLGroup = new THREE.Group();
+      armLGroup.position.set(-0.2, 1.22, 0);
+      armLGroup.add(box(0.1, 0.22, 0.12, materialSet.shirt, 0, -0.11, 0));
+      const foreArmLGroup = new THREE.Group();
+      foreArmLGroup.position.set(0, -0.22, 0);
+      foreArmLGroup.add(box(0.09, 0.2, 0.1, materialSet.skin, 0, -0.1, 0));
+      foreArmLGroup.add(sphere(0.06, materialSet.skin, 0, -0.22, 0));
+      armLGroup.add(foreArmLGroup);
+      model.add(armLGroup);
+
+      const armRGroup = new THREE.Group();
+      armRGroup.position.set(0.2, 1.22, 0);
+      armRGroup.add(box(0.1, 0.22, 0.12, materialSet.shirt, 0, -0.11, 0));
+      const foreArmRGroup = new THREE.Group();
+      foreArmRGroup.position.set(0, -0.22, 0);
+      foreArmRGroup.add(box(0.09, 0.2, 0.1, materialSet.skin, 0, -0.1, 0));
+      foreArmRGroup.add(sphere(0.06, materialSet.skin, 0, -0.22, 0));
+      const characterPickaxeGroup = new THREE.Group();
+      characterPickaxeGroup.position.set(0, -0.26, 0);
+      characterPickaxeGroup.rotation.z = 0.2;
+      characterPickaxeGroup.add(cylinder(0.018, 0.02, 0.55, 6, materialSet.pickaxeHandle, 0, -0.27, 0));
+      const pickHead = box(0.28, 0.05, 0.04, materialSet.pickaxeBlade, 0, -0.008, 0);
+      characterPickaxeGroup.add(pickHead);
+      characterPickaxeGroup.add(cylinder(0.008, 0.025, 0.09, 5, materialSet.pickaxeBlade, 0.14, -0.01, 0, 0, 0, -Math.PI / 2.5));
+      characterPickaxeGroup.add(cylinder(0.008, 0.022, 0.07, 5, materialSet.pickaxeBlade, -0.14, -0.01, 0, 0, 0, Math.PI / 2.5));
+      foreArmRGroup.add(characterPickaxeGroup);
+      armRGroup.add(foreArmRGroup);
+      model.add(armRGroup);
+
+      const legLGroup = new THREE.Group();
+      legLGroup.position.set(-0.085, 0.86, 0);
+      legLGroup.add(box(0.13, 0.24, 0.14, materialSet.pants, 0, -0.12, 0));
+      const lowerLegLGroup = new THREE.Group();
+      lowerLegLGroup.position.set(0, -0.24, 0);
+      lowerLegLGroup.add(box(0.11, 0.24, 0.12, materialSet.pants, 0, -0.12, 0));
+      lowerLegLGroup.add(box(0.135, 0.06, 0.015, materialSet.kneePad, 0, -0.02, 0.065));
+      const bootL = new THREE.Group();
+      bootL.position.set(0, -0.26, 0.03);
+      bootL.add(box(0.12, 0.1, 0.18, materialSet.boots, 0, -0.05, 0.02));
+      lowerLegLGroup.add(bootL);
+      legLGroup.add(lowerLegLGroup);
+      model.add(legLGroup);
+
+      const legRGroup = new THREE.Group();
+      legRGroup.position.set(0.085, 0.86, 0);
+      legRGroup.add(box(0.13, 0.24, 0.14, materialSet.pants, 0, -0.12, 0));
+      const lowerLegRGroup = new THREE.Group();
+      lowerLegRGroup.position.set(0, -0.24, 0);
+      lowerLegRGroup.add(box(0.11, 0.24, 0.12, materialSet.pants, 0, -0.12, 0));
+      lowerLegRGroup.add(box(0.135, 0.06, 0.015, materialSet.kneePad, 0, -0.02, 0.065));
+      const bootR = new THREE.Group();
+      bootR.position.set(0, -0.26, 0.03);
+      bootR.add(box(0.12, 0.1, 0.18, materialSet.boots, 0, -0.05, 0.02));
+      lowerLegRGroup.add(bootR);
+      legRGroup.add(lowerLegRGroup);
+      model.add(legRGroup);
+
+      const state = {
+        mode: 'idle',
+        time: 0,
+      };
+
+      function resetPose() {
+        model.position.y = 0;
+        model.rotation.x = 0;
+        headGroup.rotation.set(0, 0, 0);
+        torsoGroup.rotation.set(0, 0, 0);
+        armLGroup.rotation.set(0, 0, 0.12);
+        armRGroup.rotation.set(0, 0, -0.12);
+        foreArmLGroup.rotation.set(0.12, 0, 0);
+        foreArmRGroup.rotation.set(0.12, 0, 0);
+        legLGroup.rotation.set(0, 0, 0);
+        legRGroup.rotation.set(0, 0, 0);
+        lowerLegLGroup.rotation.set(0, 0, 0);
+        lowerLegRGroup.rotation.set(0, 0, 0);
+        characterPickaxeGroup.rotation.set(0, 0, 0.2);
+      }
+
+      function animateIdle(t) {
+        const s = Math.sin(t * 1.8);
+        model.position.y = s * 0.018;
+        headGroup.rotation.y = Math.sin(t * 0.4) * 0.08;
+        headGroup.rotation.z = Math.sin(t * 0.7) * 0.02;
+        torsoGroup.rotation.z = s * 0.015;
+        armLGroup.rotation.x = s * 0.04;
+        armLGroup.rotation.z = 0.12 + s * 0.05;
+        armRGroup.rotation.x = -s * 0.04;
+        armRGroup.rotation.z = -0.12 - s * 0.05;
+        foreArmLGroup.rotation.x = 0.15 + s * 0.03;
+        foreArmRGroup.rotation.x = 0.12 - s * 0.03;
+      }
+
+      function animateWalk(t) {
+        const speed = 3.5;
+        const s = Math.sin(t * speed);
+        const c = Math.cos(t * speed);
+        model.position.y = Math.abs(Math.sin(t * speed * 2)) * 0.04;
+        headGroup.rotation.x = c * 0.04;
+        headGroup.rotation.y = s * 0.06;
+        torsoGroup.rotation.z = s * 0.04;
+        torsoGroup.rotation.x = c * 0.03;
+        armLGroup.rotation.x = c * 0.5;
+        armRGroup.rotation.x = -c * 0.5;
+        foreArmLGroup.rotation.x = Math.max(0, c * 0.3) + 0.1;
+        foreArmRGroup.rotation.x = Math.max(0, -c * 0.3) + 0.1;
+        legLGroup.rotation.x = c * 0.55;
+        legRGroup.rotation.x = -c * 0.55;
+        lowerLegLGroup.rotation.x = Math.max(0, -s * 0.6);
+        lowerLegRGroup.rotation.x = Math.max(0, s * 0.6);
+        characterPickaxeGroup.rotation.x = -c * 0.3;
+      }
+
+      function animateRun(t) {
+        const speed = 5.5;
+        const s = Math.sin(t * speed);
+        const c = Math.cos(t * speed);
+        model.position.y = Math.abs(Math.sin(t * speed * 2)) * 0.07;
+        model.rotation.x = -0.12;
+        headGroup.rotation.x = 0.08 + c * 0.06;
+        torsoGroup.rotation.z = s * 0.06;
+        torsoGroup.rotation.x = -0.1 + c * 0.04;
+        armLGroup.rotation.x = c * 0.85;
+        armLGroup.rotation.z = 0.25;
+        armRGroup.rotation.x = -c * 0.85;
+        armRGroup.rotation.z = -0.25;
+        foreArmLGroup.rotation.x = Math.max(0, c * 0.5) + 0.2;
+        foreArmRGroup.rotation.x = Math.max(0, -c * 0.5) + 0.2;
+        legLGroup.rotation.x = c * 0.9;
+        legRGroup.rotation.x = -c * 0.9;
+        lowerLegLGroup.rotation.x = Math.max(0, -s * 0.9);
+        lowerLegRGroup.rotation.x = Math.max(0, s * 0.9);
+        characterPickaxeGroup.rotation.x = -c * 0.5;
+      }
+
+      function animateMine() {
+        const swing = Math.sin(miningState.swingProgress);
+        const recoil = Math.sin(Math.min(miningState.swingProgress * 1.22, Math.PI));
+        headGroup.rotation.x = 0.08 + swing * 0.1;
+        torsoGroup.rotation.x = swing * 0.14;
+        armRGroup.rotation.x = -1.12 + recoil * 1.24;
+        armRGroup.rotation.z = -0.2;
+        foreArmRGroup.rotation.x = 0.42 + swing * 0.72;
+        armLGroup.rotation.x = 0.18 + swing * 0.16;
+        armLGroup.rotation.z = 0.26;
+        foreArmLGroup.rotation.x = 0.34 + swing * 0.18;
+        legLGroup.rotation.x = 0.08;
+        legRGroup.rotation.x = -0.08;
+        lowerLegLGroup.rotation.x = 0.1;
+        lowerLegRGroup.rotation.x = 0.1;
+        characterPickaxeGroup.rotation.x = swing * 0.92;
+        characterPickaxeGroup.rotation.z = 0.08;
+      }
+
+      function animatePickup(t) {
+        const d = Math.sin(t * 2);
+        const bend = Math.max(0, d) * 0.4;
+        torsoGroup.rotation.x = bend;
+        headGroup.rotation.x = bend * 0.5;
+        armRGroup.rotation.x = 0.3 + bend;
+        armRGroup.rotation.z = -0.2 - bend * 0.2;
+        foreArmRGroup.rotation.x = 0.4 + bend * 0.5;
+        armLGroup.rotation.x = 0.2 + bend * 0.5;
+        armLGroup.rotation.z = 0.3;
+        foreArmLGroup.rotation.x = 0.3 + bend * 0.4;
+        legLGroup.rotation.x = bend * 0.2;
+        lowerLegLGroup.rotation.x = 0.1 + bend * 0.3;
+        lowerLegRGroup.rotation.x = 0.1;
+      }
+
+      return {
+        group: container,
+        update(delta, mode, pickaxeVisible) {
+          if (state.mode !== mode) {
+            state.mode = mode;
+            state.time = 0;
+          } else {
+            state.time += delta;
+          }
+
+          characterPickaxeGroup.visible = pickaxeVisible;
+          resetPose();
+
+          switch (mode) {
+            case 'walk':
+              animateWalk(state.time);
+              break;
+            case 'run':
+              animateRun(state.time);
+              break;
+            case 'mine':
+              animateMine();
+              break;
+            case 'pickup':
+              animatePickup(state.time);
+              break;
+            default:
+              animateIdle(state.time);
+              break;
+          }
+        },
+      };
+    }
+
+    const minerCharacter = createMinerCharacter();
+    playerRoot.add(minerCharacter.group);
+
+    const characterAnimState = {
+      collectTimer: 0,
+    };
+
     function clampPitch(value) {
       const limit = Math.PI / 2 - 0.2;
       return THREE.MathUtils.clamp(value, -limit, limit);
     }
 
     function applyLook() {
-      camera.rotation.order = 'YXZ';
-      camera.rotation.y = lookState.yaw;
-      camera.rotation.x = lookState.pitch;
-      camera.rotation.z = 0;
+      playerRoot.rotation.y = lookState.yaw;
+      cameraPivot.rotation.order = 'YXZ';
+      cameraPivot.rotation.x = lookState.pitch;
+      cameraPivot.rotation.y = 0;
+      cameraPivot.rotation.z = 0;
+      camera.rotation.set(0, 0, 0);
+    }
+
+    function updateControlChip() {
+      if (mobileState.enabled) {
+        controlChip.innerHTML = '<span class="muted">Controles:</span> move | olha | acao | inv | mapa';
+        return;
+      }
+      controlChip.innerHTML = '<span class="muted">Controles:</span> WASD | mouse | Shift | Espaco | L | 1 | clique | E | I | M';
+    }
+
+    function applyLookDelta(deltaX, deltaY, sensitivity) {
+      lookState.yaw -= deltaX * sensitivity;
+      lookState.pitch = clampPitch(lookState.pitch - deltaY * sensitivity);
+      applyLook();
+    }
+
+    function setStickKnob(knobElement, x, y) {
+      knobElement.style.setProperty('--knob-x', `${x.toFixed(1)}px`);
+      knobElement.style.setProperty('--knob-y', `${y.toFixed(1)}px`);
+    }
+
+    function resetMobileLeftStick() {
+      mobileState.left.active = false;
+      mobileState.left.id = null;
+      mobileState.left.x = 0;
+      mobileState.left.y = 0;
+      setStickKnob(mobileLeftKnob, 0, 0);
+      mobileLeftPad.classList.remove('active');
+      mobileLeftPad.setAttribute('aria-hidden', 'true');
+      mobileLeftPad.style.setProperty('--pad-x', '-999px');
+      mobileLeftPad.style.setProperty('--pad-y', '-999px');
+    }
+
+    function resetMobileRightStick() {
+      mobileState.right.active = false;
+      mobileState.right.id = null;
+      mobileState.right.x = 0;
+      mobileState.right.y = 0;
+      setStickKnob(mobileRightKnob, 0, 0);
+      mobileRightPad.classList.remove('active');
+      mobileRightPad.setAttribute('aria-hidden', 'true');
+    }
+
+    function resetMobileControls() {
+      resetMobileLeftStick();
+      resetMobileRightStick();
+      resetMobileLookDrag();
+      mobileState.actionTouchId = null;
+      mobileState.actionHeld = false;
+    }
+
+    function resetMobileLookDrag() {
+      mobileState.drag.active = false;
+      mobileState.drag.id = null;
+      mobileState.drag.lastX = 0;
+      mobileState.drag.lastY = 0;
+    }
+
+    function getStickRadius(stickElement) {
+      const rect = stickElement.getBoundingClientRect();
+      return Math.max(28, rect.width * 0.34);
+    }
+
+    function updateLeftStickPosition(clientX, clientY) {
+      const dx = clientX - mobileState.left.centerX;
+      const dy = clientY - mobileState.left.centerY;
+      const distance = Math.hypot(dx, dy);
+      const clampedDistance = Math.min(distance, mobileState.left.maxRadius);
+      const factor = distance > 0 ? clampedDistance / distance : 0;
+      mobileState.left.x = dx * factor;
+      mobileState.left.y = dy * factor;
+      setStickKnob(mobileLeftKnob, mobileState.left.x, mobileState.left.y);
+    }
+
+    function beginMobileLeftStick(touch) {
+      mobileState.left.active = true;
+      mobileState.left.id = touch.identifier;
+      mobileState.left.centerX = touch.clientX;
+      mobileState.left.centerY = touch.clientY;
+      mobileState.left.maxRadius = getStickRadius(mobileLeftPad);
+      mobileLeftPad.style.setProperty('--pad-x', `${touch.clientX}px`);
+      mobileLeftPad.style.setProperty('--pad-y', `${touch.clientY}px`);
+      mobileLeftPad.classList.add('active');
+      mobileLeftPad.setAttribute('aria-hidden', 'false');
+      updateLeftStickPosition(touch.clientX, touch.clientY);
+    }
+
+    function beginMobileRightStick(touch) {
+      const rect = mobileRightPad.getBoundingClientRect();
+      mobileState.right.active = true;
+      mobileState.right.id = touch.identifier;
+      mobileState.right.centerX = rect.left + rect.width / 2;
+      mobileState.right.centerY = rect.top + rect.height / 2;
+      mobileState.right.lastX = touch.clientX;
+      mobileState.right.lastY = touch.clientY;
+      mobileState.right.maxRadius = getStickRadius(mobileRightPad);
+      mobileRightPad.classList.add('active');
+      mobileRightPad.setAttribute('aria-hidden', 'false');
+      updateMobileRightStick(touch);
+    }
+
+    function beginMobileLookDrag(touch) {
+      mobileState.drag.active = true;
+      mobileState.drag.id = touch.identifier;
+      mobileState.drag.lastX = touch.clientX;
+      mobileState.drag.lastY = touch.clientY;
+    }
+
+    function updateMobileRightStick(touch) {
+      const dx = touch.clientX - mobileState.right.centerX;
+      const dy = touch.clientY - mobileState.right.centerY;
+      const distance = Math.hypot(dx, dy);
+      const clampedDistance = Math.min(distance, mobileState.right.maxRadius);
+      const factor = distance > 0 ? clampedDistance / distance : 0;
+      mobileState.right.x = dx * factor;
+      mobileState.right.y = dy * factor;
+      setStickKnob(mobileRightKnob, mobileState.right.x, mobileState.right.y);
+
+      if (itemState.gameActive && !itemState.inventoryOpen && !itemState.mapOpen) {
+        applyLookDelta(
+          touch.clientX - mobileState.right.lastX,
+          touch.clientY - mobileState.right.lastY,
+          mobileState.lookSensitivity
+        );
+      }
+
+      mobileState.right.lastX = touch.clientX;
+      mobileState.right.lastY = touch.clientY;
+    }
+
+    function updateMobileLookDrag(touch) {
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return;
+      applyLookDelta(
+        touch.clientX - mobileState.drag.lastX,
+        touch.clientY - mobileState.drag.lastY,
+        mobileState.dragSensitivity
+      );
+      mobileState.drag.lastX = touch.clientX;
+      mobileState.drag.lastY = touch.clientY;
+    }
+
+    function shouldUseMobileLayout() {
+      const hasTouch = coarsePointerQuery.matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+      return hasTouch && window.innerWidth <= 1024;
+    }
+
+    function isTouchOverInteractiveUi(target) {
+      return Boolean(target?.closest(
+        '#mobileInventoryButton, #mobileActionButton, #mobileRightPad, #hotbar, #minimapShell, #minimapLabel, #bigMap, .modal-window, .modal-header, .modal-toolbar, .panel-close-button'
+      ));
+    }
+
+    function canStartMobileLeftStick(touch) {
+      if (!mobileState.enabled || mobileState.left.active) return false;
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return false;
+      if (touch.clientX > window.innerWidth * 0.58) return false;
+      if (touch.clientY < window.innerHeight * 0.16) return false;
+      if (isTouchOverInteractiveUi(touch.target)) return false;
+      return true;
+    }
+
+    function canStartMobileLookDrag(touch) {
+      if (!mobileState.enabled || mobileState.drag.active) return false;
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return false;
+      if (isTouchOverInteractiveUi(touch.target)) return false;
+      return true;
+    }
+
+    function updateResponsiveLayout() {
+      const enabled = shouldUseMobileLayout();
+      mobileState.enabled = enabled;
+      document.body.classList.toggle('mobile-layout', enabled);
+      mobileHud.setAttribute('aria-hidden', String(!enabled));
+      resetMobileControls();
+
+      if (enabled) {
+        lookState.preferPointerLock = false;
+        lookState.fallbackOnly = true;
+        lookState.lastPointerError = '';
+        if (document.pointerLockElement === document.body) {
+          document.exitPointerLock();
+        }
+      } else {
+        lookState.preferPointerLock = true;
+        lookState.fallbackOnly = false;
+      }
+
+      updateControlChip();
+      updateModeChip();
+      updateMiningHud();
     }
 
     function updateModeChip() {
@@ -407,6 +994,10 @@ const world = {
       }
       if (!itemState.gameActive) {
         modeChip.textContent = 'Modo: pausa';
+        return;
+      }
+      if (mobileState.enabled) {
+        modeChip.textContent = 'Modo: controle touch';
         return;
       }
       if (lookState.pointerLockActive) {
@@ -452,12 +1043,12 @@ const world = {
     });
 
     document.addEventListener('mousedown', (event) => {
-      if (!itemState.gameActive || itemState.inventoryOpen) return;
+      if (mobileState.enabled || !itemState.gameActive || itemState.inventoryOpen) return;
       if (event.button !== 0) return;
 
       const hoveredObject = getHoveredObject();
       const hoveredType = hoveredObject?.object?.userData?.type;
-      if (hoveredType === 'homeDoor' || hoveredType === 'returnPortal') {
+      if (hoveredType === 'homeDoor' || hoveredType === 'returnPortal' || hoveredType === 'chest' || hoveredType === 'upgradeTable') {
         handleInteractAction();
         return;
       }
@@ -470,29 +1061,59 @@ const world = {
     });
 
     document.addEventListener('mouseup', (event) => {
+      if (mobileState.enabled) return;
       if (event.button === 0) miningState.holdActive = false;
       lookState.isDragging = false;
     });
 
     document.addEventListener('mouseleave', () => {
+      if (mobileState.enabled) return;
       miningState.holdActive = false;
       lookState.isDragging = false;
     });
 
     document.addEventListener('mousemove', (event) => {
-      if (!itemState.gameActive || itemState.inventoryOpen) return;
+      if (mobileState.enabled || !itemState.gameActive || itemState.inventoryOpen) return;
       const shouldApply = lookState.pointerLockActive || lookState.isDragging;
       if (!shouldApply) return;
 
       const sensitivity = lookState.pointerLockActive ? lookState.sensitivity : lookState.dragSensitivity;
-      lookState.yaw -= event.movementX * sensitivity;
-      lookState.pitch = clampPitch(lookState.pitch - event.movementY * sensitivity);
-      applyLook();
+      applyLookDelta(event.movementX, event.movementY, sensitivity);
     });
     function updateHotbar() {
       hotbarSlots.forEach((slot, index) => {
         slot.classList.toggle('selected', itemState.equippedSlot === index);
       });
+    }
+
+    function getPrimaryActionState({ hoveredObject = getHoveredObject(), targetOreHit = getTargetOreNode() } = {}) {
+      const hoveredType = hoveredObject?.object?.userData?.type;
+
+      if (hoveredType === 'homeDoor') {
+        return { type: 'interact', label: 'Entrar', note: 'caverna' };
+      }
+      if (hoveredType === 'returnPortal') {
+        return { type: 'interact', label: 'Voltar', note: 'base' };
+      }
+      if (hoveredType === 'chest') {
+        return { type: 'interact', label: 'Abrir bau', note: 'guardar' };
+      }
+      if (hoveredType === 'upgradeTable') {
+        return { type: 'interact', label: 'Usar bancada', note: 'melhorar' };
+      }
+      if (itemState.equippedSlot !== 0) {
+        return { type: 'equip-pickaxe', label: 'Picareta', note: 'equipar' };
+      }
+      if (targetOreHit?.node) {
+        return { type: 'mine', label: 'Minerar', note: targetOreHit.node.definition.short };
+      }
+      return { type: 'mine', label: 'Picareta', note: 'acao' };
+    }
+
+    function updateMobileActionButton(actionState = getPrimaryActionState()) {
+      mobileActionLabel.textContent = actionState.label;
+      mobileActionNote.textContent = actionState.note;
+      mobileActionButton.setAttribute('aria-label', actionState.label);
     }
 
     function equipSlot(slotIndex) {
@@ -504,6 +1125,13 @@ const world = {
       updateHotbar();
       saveGame();
     }
+
+    hotbarSlots.forEach((slot, index) => {
+      slot.addEventListener('click', () => {
+        equipSlot(index);
+        updateMiningHud();
+      });
+    });
 
     function updateInventoryChip() {
       inventoryChip.textContent = `Inventario: ${oreDefinitions.map((definition) => `${definition.short} ${inventoryState.totals[definition.id]}`).join(' | ')}`;
@@ -682,8 +1310,15 @@ const world = {
       if (!itemState.mapOpen && itemState.inventoryOpen) {
         closeActivePanel();
       }
+      if (!itemState.mapOpen) {
+        clearMovementState();
+        resetMobileControls();
+      }
       itemState.mapOpen = !itemState.mapOpen;
+      document.body.classList.toggle('map-open', itemState.mapOpen);
       bigMap.classList.toggle('visible', itemState.mapOpen);
+      bigMap.setAttribute('aria-hidden', String(!itemState.mapOpen));
+      updateMiningHud();
     }
 
     function setActivePanel(panelName) {
@@ -702,6 +1337,7 @@ const world = {
       if (!panelMap[panelName]) return;
       miningState.holdActive = false;
       clearMovementState();
+      resetMobileControls();
       lookState.isDragging = false;
       if (itemState.mapOpen) toggleBigMap();
       if (document.pointerLockElement === document.body) {
@@ -717,6 +1353,7 @@ const world = {
       setActivePanel(null);
       itemState.gameActive = true;
       updateModeChip();
+      updateMiningHud();
     }
 
     function toggleInventory() {
@@ -749,6 +1386,22 @@ const world = {
         areaState.currentArea = 'home';
         rebuildWorld();
       }
+    }
+
+    function triggerPrimaryAction() {
+      if (!itemState.gameActive || itemState.inventoryOpen || itemState.mapOpen) return;
+      const actionState = getPrimaryActionState();
+      if (actionState.type === 'interact') {
+        handleInteractAction();
+        return;
+      }
+      if (actionState.type === 'equip-pickaxe') {
+        equipSlot(0);
+        updateMiningHud();
+        return;
+      }
+      tryMineWithPickaxe();
+      updateMiningHud();
     }
 
     function upgradePickaxe() {
@@ -785,6 +1438,143 @@ const world = {
     upgradeFlashlightButton.addEventListener('click', () => {
       upgradeFlashlight();
     });
+
+    mobileInventoryButton.addEventListener('click', () => {
+      if (!mobileState.enabled) return;
+      toggleInventory();
+    });
+
+    bigMapCloseButton.addEventListener('click', () => {
+      if (itemState.mapOpen) toggleBigMap();
+    });
+
+    for (const closeButton of [inventoryCloseButton, chestCloseButton, upgradeCloseButton]) {
+      closeButton.addEventListener('click', () => {
+        closeActivePanel();
+      });
+    }
+
+    for (const mapTrigger of [minimapShell, minimapLabel]) {
+      mapTrigger.addEventListener('click', () => {
+        if (!mobileState.enabled) return;
+        toggleBigMap();
+      });
+    }
+
+    mobileActionButton.addEventListener('click', (event) => {
+      if (!mobileState.enabled) return;
+      event.preventDefault();
+    });
+
+    mobileActionButton.addEventListener('touchstart', (event) => {
+      if (!mobileState.enabled) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      mobileState.actionTouchId = touch.identifier;
+      mobileState.actionHeld = true;
+      triggerPrimaryAction();
+      event.preventDefault();
+    }, { passive: false });
+
+    function releaseMobileActionTouches(changedTouches) {
+      for (const touch of Array.from(changedTouches)) {
+        if (touch.identifier === mobileState.actionTouchId) {
+          mobileState.actionTouchId = null;
+          mobileState.actionHeld = false;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    mobileRightPad.addEventListener('touchstart', (event) => {
+      if (!mobileState.enabled || mobileState.right.active) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      beginMobileRightStick(touch);
+      event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchstart', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = false;
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (canStartMobileLeftStick(touch)) {
+          beginMobileLeftStick(touch);
+          handled = true;
+        } else if (canStartMobileLookDrag(touch)) {
+          beginMobileLookDrag(touch);
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchmove', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = false;
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (touch.identifier === mobileState.left.id) {
+          updateLeftStickPosition(touch.clientX, touch.clientY);
+          handled = true;
+        } else if (touch.identifier === mobileState.right.id) {
+          updateMobileRightStick(touch);
+          handled = true;
+        } else if (touch.identifier === mobileState.drag.id) {
+          updateMobileLookDrag(touch);
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchend', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = releaseMobileActionTouches(event.changedTouches);
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (touch.identifier === mobileState.left.id) {
+          resetMobileLeftStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.right.id) {
+          resetMobileRightStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.drag.id) {
+          resetMobileLookDrag();
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchcancel', (event) => {
+      if (!mobileState.enabled) return;
+      let handled = releaseMobileActionTouches(event.changedTouches);
+
+      for (const touch of Array.from(event.changedTouches)) {
+        if (touch.identifier === mobileState.left.id) {
+          resetMobileLeftStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.right.id) {
+          resetMobileRightStick();
+          handled = true;
+        }
+        if (touch.identifier === mobileState.drag.id) {
+          resetMobileLookDrag();
+          handled = true;
+        }
+      }
+
+      if (handled) event.preventDefault();
+    }, { passive: false });
 
     function getDropPool(definition) {
       let pool = dropMeshPools.get(definition.id);
@@ -1808,31 +2598,41 @@ const world = {
       if (miningState.targetNode === node) miningState.targetNode = null;
     }
 
+    function getRaycastReach(range) {
+      const origin = getPlayerInteractionOrigin(interactionOrigin);
+      camera.getWorldPosition(cameraWorldPosition);
+      return range + cameraWorldPosition.distanceTo(origin) + 0.75;
+    }
+
     function getTargetOreNode() {
       if (itemState.equippedSlot !== 0 || world.oreHitMeshes.length === 0) return null;
 
       let bestHit = null;
+      const origin = getPlayerInteractionOrigin(interactionOrigin);
+      const maxDistanceSq = miningState.range * miningState.range;
       raycaster.near = 0;
-      raycaster.far = miningState.range;
+      raycaster.far = getRaycastReach(miningState.range);
 
       for (const sample of miningAimSamples) {
         raycaster.setFromCamera(sample, camera);
         const intersections = raycaster.intersectObjects(world.oreHitMeshes, false);
         for (const hit of intersections) {
-          if (hit.distance > miningState.range) break;
+          const distanceSq = origin.distanceToSquared(hit.point);
+          if (distanceSq > maxDistanceSq) continue;
           const node = hit.object.userData.oreNodeRef;
           if (!node) continue;
+          const playerDistance = Math.sqrt(distanceSq);
 
           const worldNormal = hit.face?.normal
             ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize()
             : node.normal.clone();
 
-          if (!bestHit || hit.distance < bestHit.distance) {
+          if (!bestHit || playerDistance < bestHit.distance) {
             bestHit = {
               node,
               point: hit.point.clone(),
               normal: worldNormal,
-              distance: hit.distance,
+              distance: playerDistance,
             };
           }
           break;
@@ -1846,16 +2646,22 @@ const world = {
       if (!itemState.gameActive || world.interactables.length === 0) return null;
 
       let bestHit = null;
+      const origin = getPlayerInteractionOrigin(interactionOrigin);
+      const maxDistanceSq = interactionState.range * interactionState.range;
       raycaster.near = 0;
-      raycaster.far = interactionState.range;
+      raycaster.far = getRaycastReach(interactionState.range);
 
       for (const sample of miningAimSamples) {
         raycaster.setFromCamera(sample, camera);
         const intersections = raycaster.intersectObjects(world.interactables, false);
         for (const hit of intersections) {
-          if (hit.distance > interactionState.range) break;
-          if (!bestHit || hit.distance < bestHit.distance) {
-            bestHit = hit;
+          const distanceSq = origin.distanceToSquared(hit.point);
+          if (distanceSq > maxDistanceSq) continue;
+          if (!bestHit || distanceSq < bestHit.playerDistanceSq) {
+            bestHit = {
+              ...hit,
+              playerDistanceSq: distanceSq,
+            };
           }
           break;
         }
@@ -1887,8 +2693,8 @@ const world = {
       let writeIndex = 0;
       let inventoryChanged = false;
       for (const drop of world.dropItems) {
-        const dx = camera.position.x - drop.mesh.position.x;
-        const dz = camera.position.z - drop.mesh.position.z;
+        const dx = getPlayerX() - drop.mesh.position.x;
+        const dz = getPlayerZ() - drop.mesh.position.z;
         if (dx * dx + dz * dz <= 0.85 * 0.85) {
           inventoryState.totals[drop.definition.id] += drop.amount;
           releaseDropMesh(drop);
@@ -1903,6 +2709,7 @@ const world = {
       world.dropItems.length = writeIndex;
 
       if (inventoryChanged) {
+        characterAnimState.collectTimer = Math.max(characterAnimState.collectTimer, 0.42);
         refreshResourceUi();
         saveGame();
       }
@@ -1911,33 +2718,39 @@ const world = {
     function updateMiningHud() {
       const hit = getTargetOreNode();
       const hoveredObject = getHoveredObject();
+      const actionState = getPrimaryActionState({ hoveredObject, targetOreHit: hit });
+      const interactHint = mobileState.enabled ? 'use o botao de acao' : 'clique ou pressione E';
+      const mineHint = mobileState.enabled ? 'use o botao Picareta' : 'clique';
       miningState.targetNode = hit ? hit.node : null;
+      updateMobileActionButton(actionState);
       if (hoveredObject?.object?.userData?.type === 'homeDoor') {
-        miningChip.textContent = 'Interacao: clique ou pressione E para entrar na caverna';
+        miningChip.textContent = `Interacao: ${interactHint} para entrar na caverna`;
         return;
       }
       if (hoveredObject?.object?.userData?.type === 'returnPortal') {
-        miningChip.textContent = 'Interacao: clique ou pressione E para voltar para casa';
+        miningChip.textContent = `Interacao: ${interactHint} para voltar para casa`;
         return;
       }
       if (hoveredObject?.object?.userData?.type === 'chest') {
-        miningChip.textContent = 'Interacao: pressione E para abrir o bau';
+        miningChip.textContent = `Interacao: ${interactHint} para abrir o bau`;
         return;
       }
       if (hoveredObject?.object?.userData?.type === 'upgradeTable') {
-        miningChip.textContent = 'Interacao: pressione E para usar a mesa de melhorias';
+        miningChip.textContent = `Interacao: ${interactHint} para usar a mesa de melhorias`;
         return;
       }
       if (itemState.equippedSlot !== 0) {
-        miningChip.textContent = 'MineraÃ§Ã£o: equipe a picareta no 1';
+        miningChip.textContent = mobileState.enabled
+          ? 'Mineracao: toque na Picareta para equipar'
+          : 'Mineracao: equipe a picareta no 1';
         return;
       }
       if (!miningState.targetNode) {
-        miningChip.textContent = 'MineraÃ§Ã£o: mire num node e clique para bater';
+        miningChip.textContent = `Mineracao: mire num node e ${mineHint} para bater`;
         return;
       }
       const node = miningState.targetNode;
-      miningChip.textContent = `MineraÃ§Ã£o: ${node.definition.label} Â· ${node.hp}/${node.maxHp} batidas restantes`;
+      miningChip.textContent = `Mineracao: ${node.definition.label} | ${node.hp}/${node.maxHp} batidas restantes`;
     }
 
     function updateOreAndDrops(delta) {
@@ -2035,11 +2848,12 @@ const world = {
 
     function resetPlayer() {
       const spawnYaw = directionToYaw(world.spawnDir);
-      playerState.bodyY = floorHeightAt(world.spawn.x, world.spawn.z) + world.playerHeight;
+      const spawnFloor = floorHeightAt(world.spawn.x, world.spawn.z);
+      playerState.bodyY = spawnFloor + world.playerHeight;
       playerState.verticalVelocity = 0;
       playerState.grounded = true;
       playerState.jumpQueued = false;
-      camera.position.set(world.spawn.x, playerState.bodyY, world.spawn.z);
+      playerRoot.position.set(world.spawn.x, spawnFloor, world.spawn.z);
       lookState.yaw = spawnYaw;
       lookState.pitch = 0;
       applyLook();
@@ -2089,8 +2903,8 @@ const world = {
     }
 
     function revealAroundPlayer() {
-      const cellX = worldToCellX(camera.position.x);
-      const cellY = worldToCellY(camera.position.z);
+      const cellX = worldToCellX(getPlayerX());
+      const cellY = worldToCellY(getPlayerZ());
       const revealRadius = 5;
 
       for (let y = cellY - revealRadius; y <= cellY + revealRadius; y++) {
@@ -2131,7 +2945,7 @@ const world = {
     }
 
     function getForwardDirection(out) {
-      out.set(0, 0, -1).applyEuler(camera.rotation);
+      camera.getWorldDirection(out);
       return out.normalize();
     }
 
@@ -2143,8 +2957,8 @@ const world = {
       ctx.fillStyle = 'rgba(5, 7, 10, 0.9)';
       ctx.fillRect(0, 0, w, h);
 
-      const playerX = worldToMapFloatX(camera.position.x);
-      const playerY = worldToMapFloatY(camera.position.z);
+      const playerX = worldToMapFloatX(getPlayerX());
+      const playerY = worldToMapFloatY(getPlayerZ());
       const scale = 11.5;
       const offsetX = w / 2 - playerX * scale;
       const offsetY = h / 2 - playerY * scale;
@@ -2203,8 +3017,8 @@ const world = {
       ctx.lineWidth = 1;
       ctx.strokeRect(offsetX, offsetY, world.width * scale, world.height * scale);
 
-      const playerX = offsetX + worldToMapFloatX(camera.position.x) * scale;
-      const playerY = offsetY + worldToMapFloatY(camera.position.z) * scale;
+      const playerX = offsetX + worldToMapFloatX(getPlayerX()) * scale;
+      const playerY = offsetY + worldToMapFloatY(getPlayerZ()) * scale;
       getForwardDirection(tempVec);
       const angle = Math.atan2(tempVec.x, -tempVec.z);
       drawPlayerArrow(ctx, playerX, playerY, angle, Math.max(8, scale * 0.8));
@@ -2219,10 +3033,10 @@ const world = {
     let velocityRight = 0;
 
     function tryMove(dx, dz) {
-      const nextX = camera.position.x + dx;
-      if (!blockedAt(nextX, camera.position.z, world.playerRadius)) camera.position.x = nextX;
-      const nextZ = camera.position.z + dz;
-      if (!blockedAt(camera.position.x, nextZ, world.playerRadius)) camera.position.z = nextZ;
+      const nextX = getPlayerX() + dx;
+      if (!blockedAt(nextX, getPlayerZ(), world.playerRadius)) playerRoot.position.x = nextX;
+      const nextZ = getPlayerZ() + dz;
+      if (!blockedAt(getPlayerX(), nextZ, world.playerRadius)) playerRoot.position.z = nextZ;
     }
 
     function onKeyChange(event, value) {
@@ -2284,7 +3098,7 @@ const world = {
     });
 
     renderer.domElement.addEventListener('click', () => {
-      if (!itemState.gameActive || itemState.inventoryOpen) return;
+      if (mobileState.enabled || !itemState.gameActive || itemState.inventoryOpen) return;
       if (lookState.preferPointerLock && !lookState.pointerLockActive && !lookState.fallbackOnly) {
         tryRequestPointerLock();
       }
@@ -2294,7 +3108,12 @@ const world = {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      updateResponsiveLayout();
     });
+
+    if (typeof coarsePointerQuery.addEventListener === 'function') {
+      coarsePointerQuery.addEventListener('change', updateResponsiveLayout);
+    }
 
     function runSelfTests() {
       const failures = [];
@@ -2339,6 +3158,8 @@ const world = {
         assert(homeRegions.length === 1, 'casa deveria ter uma Ãºnica regiÃ£o aberta');
         assert(homeRegions[0].length === expectedHomeCells, 'casa nÃ£o estÃ¡ fechada como quarto isolado');
         buildHomeObjects();
+        assert(getRaycastReach(interactionState.range) > interactionState.range, 'interaÃ§Ã£o nÃ£o considera o offset da cÃ¢mera');
+        assert(getRaycastReach(miningState.range) > miningState.range, 'mineraÃ§Ã£o nÃ£o considera o offset da cÃ¢mera');
         assert(world.interactables.some((object) => object.userData.type === 'homeDoor'), 'porta da casa nÃ£o foi criada');
         assert(world.interactables.some((object) => object.userData.type === 'chest'), 'baÃº da casa nÃ£o foi criado');
         assert(world.interactables.some((object) => object.userData.type === 'upgradeTable'), 'mesa da casa nÃ£o foi criada');
@@ -2411,7 +3232,8 @@ const world = {
     rebuildWorld();
     applyLook();
     itemState.gameActive = true;
-    lookState.preferPointerLock = true;
+    updateControlChip();
+    updateResponsiveLayout();
     updateModeChip();
     updateMiningHud();
     scheduleSelfTests();
@@ -2422,8 +3244,10 @@ const world = {
 
       if (itemState.gameActive && !itemState.inventoryOpen) {
         const moveSpeed = keyState.sprint ? 8.6 : 5.6;
-        const inputForward = (keyState.forward ? 1 : 0) - (keyState.backward ? 1 : 0);
-        const inputRight = (keyState.right ? 1 : 0) - (keyState.left ? 1 : 0);
+        const mobileForward = mobileState.left.maxRadius > 0 ? -mobileState.left.y / mobileState.left.maxRadius : 0;
+        const mobileRight = mobileState.left.maxRadius > 0 ? mobileState.left.x / mobileState.left.maxRadius : 0;
+        const inputForward = THREE.MathUtils.clamp(((keyState.forward ? 1 : 0) - (keyState.backward ? 1 : 0)) + mobileForward, -1, 1);
+        const inputRight = THREE.MathUtils.clamp(((keyState.right ? 1 : 0) - (keyState.left ? 1 : 0)) + mobileRight, -1, 1);
         const length = Math.hypot(inputForward, inputRight);
         const normalizedForward = length > 0 ? inputForward / length : 0;
         const normalizedRight = length > 0 ? inputRight / length : 0;
@@ -2449,14 +3273,18 @@ const world = {
         if (miningState.holdActive) {
           tryMineWithPickaxe();
         }
+        if (mobileState.actionHeld) {
+          triggerPrimaryAction();
+        }
       } else {
         velocityForward = damp(velocityForward, 0, 12, delta);
         velocityRight = damp(velocityRight, 0, 12, delta);
         playerState.jumpQueued = false;
       }
 
-      const bobSpeed = Math.min(1, Math.hypot(velocityForward, velocityRight) / 7.5);
-      const floor = floorHeightAt(camera.position.x, camera.position.z);
+      const horizontalSpeed = Math.hypot(velocityForward, velocityRight);
+      const bobSpeed = Math.min(1, horizontalSpeed / 7.5);
+      const floor = floorHeightAt(getPlayerX(), getPlayerZ());
       const groundedHeight = floor + world.playerHeight;
       if (playerState.grounded && playerState.bodyY <= groundedHeight + 0.001 && playerState.verticalVelocity <= 0) {
         playerState.bodyY = groundedHeight;
@@ -2471,7 +3299,8 @@ const world = {
         }
       }
       const bob = playerState.grounded ? Math.sin(clock.elapsedTime * 9.5) * 0.022 * bobSpeed : 0;
-      camera.position.y = playerState.bodyY + bob;
+      playerRoot.position.y = playerState.bodyY - world.playerHeight;
+      cameraPivot.position.set(0, world.playerHeight - 0.22 + bob, 0);
 
       const flashlightLevelOffset = playerStats.flashlightLevel - 1;
       const flashlightDistance = 42 + flashlightLevelOffset * 8;
@@ -2485,11 +3314,11 @@ const world = {
         flashlightBeam.angle = flashlightAngle;
         flashlightBeam.shadow.camera.updateProjectionMatrix();
       }
-      flashlightPivot.position.set(0, 0.02 - bob * 0.12, 0.04);
+      flashlightPivot.position.set(0, 0.02, 0.04);
       flashlightPivot.rotation.set(0, 0, 0);
 
       const pickaxeActive = itemState.equippedSlot === 0;
-      pickaxeModel.visible = pickaxeActive;
+      pickaxeModel.visible = false;
       const pickaxeRestRotation = new THREE.Euler(0.18, 1.42, 0.18);
       const pickaxeSwingSpeed = 11.2;
       const pickaxeSwingArc = -1.2;
@@ -2511,6 +3340,23 @@ const world = {
       pickaxeModel.rotation.z = pickaxeRestRotation.z;
       pickaxePivot.position.set(0.5 + Math.sin(clock.elapsedTime * 7.2) * 0.012 * bobSpeed, -0.5 - bob * 0.34, -0.8);
       pickaxePivot.rotation.set(-0.22, -0.08, 0.08);
+
+      if (characterAnimState.collectTimer > 0) {
+        characterAnimState.collectTimer = Math.max(0, characterAnimState.collectTimer - delta);
+      }
+
+      let characterMode = 'idle';
+      if (miningState.swinging) {
+        characterMode = 'mine';
+      } else if (characterAnimState.collectTimer > 0) {
+        characterMode = 'pickup';
+      } else if (horizontalSpeed > 6.3) {
+        characterMode = 'run';
+      } else if (horizontalSpeed > 0.25) {
+        characterMode = 'walk';
+      }
+
+      minerCharacter.update(delta, characterMode, pickaxeActive);
 
       revealAroundPlayer();
       updateOreAndDrops(delta);
