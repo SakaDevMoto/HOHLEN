@@ -1,0 +1,194 @@
+{
+  "pickaxe": {
+    "label": "Picareta",
+    "maxLevel": 10,
+    "levels": {
+      "2": {
+        "ferrita": 3
+      },
+      "3": {
+        "ferrita": 5,
+        "cobre": 1
+      },
+      "4": {
+        "ferrita": 6,
+        "cobre": 3
+      },
+      "5": {
+        "ferrita": 7,
+        "cobre": 4,
+        "ametista": 1
+      },
+      "6": {
+        "ferrita": 8,
+        "cobre": 5,
+        "ametista": 2
+      },
+      "7": {
+        "ferrita": 9,
+        "cobre": 5,
+        "ametista": 3,
+        "safira": 1
+      },
+      "8": {
+        "ferrita": 10,
+        "cobre": 6,
+        "ametista": 4,
+        "safira": 2
+      },
+      "9": {
+        "ferrita": 12,
+        "cobre": 7,
+        "ametista": 5,
+        "safira": 3,
+        "aurio": 1
+      },
+      "10": {
+        "ferrita": 14,
+        "cobre": 8,
+        "ametista": 6,
+        "safira": 4,
+        "aurio": 2
+      }
+    }
+  },
+  "sword": {
+    "label": "Espada",
+    "maxLevel": 10,
+    "levels": {
+      "2": {
+        "ferrita": 3
+      },
+      "3": {
+        "ferrita": 5,
+        "cobre": 2
+      },
+      "4": {
+        "ferrita": 7,
+        "cobre": 3
+      },
+      "5": {
+        "ferrita": 8,
+        "cobre": 4,
+        "ametista": 2
+      },
+      "6": {
+        "ferrita": 10,
+        "cobre": 5,
+        "ametista": 3
+      },
+      "7": {
+        "ferrita": 11,
+        "cobre": 6,
+        "ametista": 4,
+        "safira": 2
+      },
+      "8": {
+        "ferrita": 12,
+        "cobre": 7,
+        "ametista": 5,
+        "safira": 3
+      },
+      "9": {
+        "ferrita": 14,
+        "cobre": 8,
+        "ametista": 6,
+        "safira": 4,
+        "aurio": 2
+      },
+      "10": {
+        "ferrita": 16,
+        "cobre": 9,
+        "ametista": 7,
+        "safira": 5,
+        "aurio": 3
+      }
+    }
+  },
+  "crossbow": {
+    "label": "Crossbow",
+    "maxLevel": 10,
+    "levels": {
+      "2": {
+        "ferrita": 3
+      },
+      "3": {
+        "ferrita": 5,
+        "cobre": 2
+      },
+      "4": {
+        "ferrita": 6,
+        "cobre": 3
+      },
+      "5": {
+        "ferrita": 7,
+        "cobre": 4,
+        "ametista": 1
+      },
+      "6": {
+        "ferrita": 8,
+        "cobre": 5,
+        "ametista": 2
+      },
+      "7": {
+        "ferrita": 9,
+        "cobre": 6,
+        "ametista": 3,
+        "safira": 1
+      },
+      "8": {
+        "ferrita": 10,
+        "cobre": 7,
+        "ametista": 4,
+        "safira": 2
+      },
+      "9": {
+        "ferrita": 12,
+        "cobre": 8,
+        "ametista": 5,
+        "safira": 3,
+        "aurio": 1
+      },
+      "10": {
+        "ferrita": 14,
+        "cobre": 9,
+        "ametista": 6,
+        "safira": 4,
+        "aurio": 2
+      }
+    }
+  },
+  "flashlight": {
+    "label": "Lanterna",
+    "maxLevel": 10,
+    "levels": {
+      "2": {
+        "cobre": 5
+      },
+      "3": {
+        "cobre": 5
+      },
+      "4": {
+        "cobre": 5
+      },
+      "5": {
+        "cobre": 5
+      },
+      "6": {
+        "cobre": 5
+      },
+      "7": {
+        "cobre": 5
+      },
+      "8": {
+        "cobre": 5
+      },
+      "9": {
+        "cobre": 5
+      },
+      "10": {
+        "cobre": 5
+      }
+    }
+  }
+}

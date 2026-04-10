@@ -17,7 +17,7 @@
 <body>
   <div class="hud">
     <div class="chip" id="seedChip">Seed: --</div>
-    <div class="chip" id="controlChip"><span class="muted">Controles:</span> WASD · mouse · Shift · Espaço · L · 1 · clique · E · I · M</div>
+<div class="chip" id="controlChip"><span class="muted">Controles:</span> WASD · mouse · Shift · Espaço · L · 1/2/3 · clique · E · I · M</div>
     <div class="chip" id="modeChip">Modo: clique para travar a câmera</div>
     <div class="chip" id="inventoryChip">Inventário: Fe 0 · Cu 0 · Am 0 · Sa 0 · Au 0</div>
     <div class="chip" id="miningChip">Mineração: equipe a picareta no 1</div>
@@ -29,11 +29,61 @@
   </div>
   <div id="minimapLabel">Mapa local · M expande</div>
 
+  <div id="mobileHud" aria-hidden="true">
+    <button id="mobileInventoryButton" class="mobile-icon-button" type="button" aria-label="Abrir inventario">
+      <span aria-hidden="true">Inv</span>
+    </button>
+
+    <div id="mobileLeftPad" class="mobile-stick dynamic" aria-hidden="true">
+      <div class="mobile-stick-base"></div>
+      <div class="mobile-stick-knob"></div>
+    </div>
+
+    <div id="mobileRightPad" class="mobile-stick fixed" aria-hidden="true">
+      <div class="mobile-stick-base"></div>
+      <div class="mobile-stick-knob"></div>
+    </div>
+
+    <button id="mobileActionButton" class="mobile-action-button" type="button" aria-label="Usar picareta">
+      <span class="action-label">Picareta</span>
+      <span class="action-note">acao</span>
+    </button>
+  </div>
+
+  <div id="combatHud" aria-live="polite">
+    <div class="combat-health">
+      <span class="combat-label">Vida</span>
+      <div class="combat-bar" aria-hidden="true">
+        <span id="healthFill"></span>
+      </div>
+      <strong id="healthText">100/100</strong>
+    </div>
+    <div class="combat-sword" id="swordHudText">Espada Lvl 1 | Dano 6</div>
+  </div>
+
+  <div id="worldUiLayer" aria-hidden="true">
+    <div id="interactionPrompt" hidden>
+      <div id="interactionKeyBadge" class="interaction-badge" aria-hidden="true">E</div>
+      <div id="interactionPickaxeBadge" class="interaction-badge" aria-hidden="true" hidden>
+        <svg viewBox="0 0 64 64" class="interaction-pickaxe-icon">
+          <path class="pickaxe-shadow" d="M20.5 34.7 47.8 62a4.2 4.2 0 0 0 6-6L26.4 28.6Z"/>
+          <path class="pickaxe-handle" d="M23.6 31.2 51.7 59.3a2.2 2.2 0 0 0 3.1-3.1L26.7 28.1Z"/>
+          <path class="pickaxe-handle-tip" d="M18.8 35.9 22.4 32.3 31.7 41.6 28.1 45.2Z"/>
+          <path class="pickaxe-head" d="M8.2 18.8C20 8 37.9 7.5 52.9 17.1l-4.8 7.5c-9-5.4-20.7-4.7-29 1.9l9.7 1.7 7.9 7.9-6.5 6.5-7.8-7.8-1.8-9.8c-3.2 2.5-5.8 5.7-7.7 9.2Z"/>
+          <path class="pickaxe-highlight" d="M20.4 18.3c7.1-4.2 15.9-4.6 24.2-1.2-8.2-.6-15.4 1.2-21.3 5.4Z"/>
+        </svg>
+      </div>
+    </div>
+    <div id="monsterBarsLayer"></div>
+    <div id="oreBarsLayer"></div>
+    <div id="damageNumbersLayer"></div>
+  </div>
+
   <div id="bigMap" aria-hidden="true">
     <div id="bigMapPanel">
       <div id="bigMapHeader">
         <span>Mapa explorado</span>
-        <span class="muted">M para fechar</span>
+        <button id="bigMapCloseButton" class="panel-close-button" type="button" aria-label="Fechar mapa">Fechar</button>
       </div>
       <canvas id="bigMapCanvas" width="620" height="620"></canvas>
     </div>
@@ -43,7 +93,38 @@
     <div class="modal-window" id="inventoryWindow">
       <div class="modal-header" id="inventoryHeader">
         <span>Inventário</span>
-        <span class="muted">I para fechar</span>
+        <button id="inventoryCloseButton" class="panel-close-button" type="button" aria-label="Fechar inventario">Fechar</button>
+      </div>
+      <div class="inventory-layout" id="inventoryLayout">
+        <section class="inventory-main">
+          <div class="inventory-section-header">
+            <div>
+              <strong>Itens</strong>
+              <span id="inventoryItemCountText">12 slots | arraste para reordenar e para a hotbar</span>
+            </div>
+          </div>
+          <div id="inventoryItemGrid" class="item-grid" aria-label="Inventario de itens"></div>
+        </section>
+        <aside class="inventory-sidebar">
+          <section class="inventory-avatar-card inventory-preview-card" aria-label="Equipamentos do jogador">
+            <div class="inventory-preview-stage">
+              <canvas id="inventoryPreviewCanvas" aria-label="Preview do personagem"></canvas>
+              <div class="equipment-anchor equipment-anchor-head">
+                <span class="equipment-anchor-label">Cabeca</span>
+                <div id="inventoryHeadSlot" class="item-slot equipment-slot" data-location-type="equipment" data-equipment-slot="head" aria-label="Slot de cabeca"></div>
+              </div>
+              <div class="equipment-anchor equipment-anchor-backpack">
+                <span class="equipment-anchor-label">Mochila</span>
+                <div id="inventoryBackpackSlot" class="item-slot equipment-slot" data-location-type="equipment" data-equipment-slot="backpack" aria-label="Slot da mochila"></div>
+              </div>
+            </div>
+            <p class="inventory-avatar-note">O personagem exibido aqui e o personagem real do jogo.</p>
+          </section>
+          <section class="inventory-info-card">
+            <div class="inventory-section-title">Dicas</div>
+            <div id="inventoryInfoText" class="inventory-info-text">Arraste itens entre slots. Os slots 1-5 correspondem as teclas 1-5. A lanterna vai no slot acima da cabeca e a mochila fica ao lado direito do personagem.</div>
+          </section>
+        </aside>
       </div>
       <div class="modal-grid" id="inventoryGrid" aria-label="Inventário de minérios"></div>
     </div>
@@ -53,13 +134,29 @@
     <div class="modal-window">
       <div class="modal-header">
         <span>Baú da base</span>
-        <span class="muted">E ou Esc para fechar</span>
+        <button id="chestCloseButton" class="panel-close-button" type="button" aria-label="Fechar bau">Fechar</button>
       </div>
       <div class="modal-toolbar">
-        <button id="transferAllButton" class="button">Transferir tudo</button>
-        <span class="muted">Guarde tudo ou só parte do que está carregando.</span>
+        <button id="transferAllButton" class="button">Guardar tudo no bau</button>
+        <span class="muted">Arraste e solte entre inventario e bau.</span>
       </div>
-      <div id="chestGrid" class="storage-grid" aria-label="Conteúdo do baú"></div>
+      <div class="chest-layout">
+        <section class="chest-column">
+          <div class="inventory-section-title">Bau</div>
+          <div id="chestStorageGrid" class="item-grid compact-item-grid" aria-label="Conteudo do bau"></div>
+        </section>
+        <section class="chest-column">
+          <div class="inventory-section-title">Inventario</div>
+          <div id="chestGrid" class="item-grid compact-item-grid" aria-label="Itens do inventario no bau"></div>
+        </section>
+      </div>
+      <div id="chestRecoveryPanel" class="chest-recovery-panel" aria-hidden="true">
+        <div class="chest-recovery-copy">
+          <strong>Reposicao gratis</strong>
+          <p id="chestRecoveryHint" class="muted">O bau pode devolver 1 item Level 1 apenas quando ele realmente nao existir em nenhum lugar do jogo.</p>
+        </div>
+        <div id="chestRecoveryActions" class="chest-recovery-actions" aria-label="Reposicao gratis do bau"></div>
+      </div>
     </div>
   </div>
 
@@ -67,9 +164,62 @@
     <div class="modal-window">
       <div class="modal-header">
         <span>Mesa de melhorias</span>
-        <span class="muted">E ou Esc para fechar</span>
+        <button id="upgradeCloseButton" class="panel-close-button" type="button" aria-label="Fechar melhorias">Fechar</button>
       </div>
       <div class="upgrade-layout">
+        <section class="upgrade-station upgrade-focus-panel">
+          <div class="upgrade-section-title">Melhoria ativa</div>
+          <div class="upgrade-focus-card">
+            <div class="upgrade-focus-copy">
+              <span class="summary-label" id="upgradeSelectedKind">Mesa vazia</span>
+              <strong class="summary-value upgrade-focus-title" id="upgradeSelectedName">Arraste um item para a bancada</strong>
+              <span class="summary-note upgrade-focus-stats" id="upgradeSelectedStats">Picareta, espada, crossbow, lanterna e mochila podem subir de nivel aqui.</span>
+              <p class="muted upgrade-focus-hint" id="upgradeSelectedHint">A mesa usa recursos do inventario e do bau.</p>
+              <button id="upgradeSelectedItemButton" class="button">Selecione um item</button>
+            </div>
+            <div class="upgrade-focus-slot-area">
+              <div class="upgrade-bench-copy">
+                <strong>Item na bancada</strong>
+                <span>Arraste um item para o centro e melhore quando quiser.</span>
+              </div>
+              <div class="upgrade-bench-slot-shell">
+                <div id="upgradeWorkbenchSlot" class="item-slot workbench-slot" data-location-type="workbench" aria-label="Item na bancada"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <aside class="upgrade-inventory upgrade-support-panel">
+          <div class="upgrade-side-card upgrade-head-card">
+            <div class="upgrade-section-title">Equipamento</div>
+            <div class="upgrade-head-row">
+              <div class="upgrade-equipment-grid">
+                <div class="equipment-anchor equipment-anchor-head equipment-anchor-upgrade">
+                  <span class="equipment-anchor-label">Cabeca</span>
+                  <div id="upgradeHeadSlot" class="item-slot equipment-slot" data-location-type="equipment" data-equipment-slot="head" aria-label="Slot de cabeca na bancada"></div>
+                </div>
+                <div class="equipment-anchor equipment-anchor-upgrade">
+                  <span class="equipment-anchor-label">Mochila</span>
+                  <div id="upgradeBackpackSlot" class="item-slot equipment-slot" data-location-type="equipment" data-equipment-slot="backpack" aria-label="Slot da mochila na bancada"></div>
+                </div>
+              </div>
+              <p class="muted upgrade-head-note">A lanterna equipada e a mochila equipada tambem podem ser arrastadas para a bancada e melhoradas.</p>
+            </div>
+          </div>
+          <div class="upgrade-side-card upgrade-resource-card">
+            <div class="inventory-section-header upgrade-resource-header">
+              <strong>Minerios</strong>
+              <span>Disponiveis agora</span>
+            </div>
+            <div id="upgradeResourceGrid" class="inventory-resource-grid upgrade-resource-grid" aria-label="Minerios disponiveis na bancada"></div>
+          </div>
+        </aside>
+        <section class="upgrade-player-card">
+          <div class="inventory-section-header upgrade-inventory-header">
+            <strong>Itens do jogador</strong>
+            <span>Arraste para a bancada</span>
+          </div>
+          <div id="upgradeInventoryGrid" class="item-grid compact-item-grid upgrade-item-grid" aria-label="Inventario de itens na bancada"></div>
+        </section>
         <div class="upgrade-summary">
           <div class="summary-card">
             <span class="summary-label">Picareta</span>
@@ -81,39 +231,243 @@
             <strong class="summary-value" id="flashlightLevelValue">Nível 1</strong>
             <span class="summary-note" id="flashlightPowerValue">Feixe base</span>
           </div>
+          <div class="summary-card">
+            <span class="summary-label">Espada</span>
+            <strong class="summary-value" id="swordLevelValue">Nivel 1</strong>
+            <span class="summary-note" id="swordDamageValue">Dano 6</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Crossbow</span>
+            <strong class="summary-value" id="crossbowLevelValue">Nivel 1</strong>
+            <span class="summary-note" id="crossbowDamageValue">Dano 14</span>
+          </div>
         </div>
         <div class="upgrade-actions">
           <button id="upgradePickaxeButton" class="button">Melhorar Picareta (Custo: 10 Ferrita)</button>
           <button id="upgradeFlashlightButton" class="button secondary">Melhorar Lanterna (Custo: 5 Cobre vivo)</button>
+          <button id="upgradeSwordButton" class="button secondary">Melhorar Espada</button>
+          <button id="upgradeCrossbowButton" class="button secondary">Melhorar Crossbow</button>
           <p class="muted" id="upgradeHint">A mesa usa recursos do inventário e do baú.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="hotbar" aria-label="Barra de itens">
-    <div class="slot" data-slot="1">
-      <span class="slot-num">1</span>
-      <span class="slot-label">Picareta</span>
-    </div>
-    <div class="slot slot-empty" data-slot="2">
-      <span class="slot-num">2</span>
-      <span class="slot-label">Vazio</span>
-    </div>
-    <div class="slot slot-empty" data-slot="3">
-      <span class="slot-num">3</span>
-      <span class="slot-label">Vazio</span>
-    </div>
-    <div class="slot slot-empty" data-slot="4">
-      <span class="slot-num">4</span>
-      <span class="slot-label">Vazio</span>
-    </div>
-    <div class="slot slot-empty" data-slot="5">
-      <span class="slot-num">5</span>
-      <span class="slot-label">Vazio</span>
+  <div id="optionsPanel" class="modal-panel" aria-hidden="true">
+    <div class="modal-window options-window">
+      <div class="modal-header">
+        <span>Opcoes</span>
+        <button id="optionsCloseButton" class="panel-close-button" type="button" aria-label="Fechar opcoes">Fechar</button>
+      </div>
+      <div class="options-layout">
+        <button id="controlsMenuButton" class="options-menu-button" type="button">Controles</button>
+        <div id="controlsDetails" class="controls-details" hidden>
+          <div class="controls-section">
+            <strong>Computador</strong>
+            <span>WASD: mover</span>
+            <span>Mouse: olhar</span>
+            <span>Shift: correr</span>
+            <span>Espaco: pular</span>
+            <span>E: interagir com bau, bancada e portais</span>
+            <span>1-5: usar slots da barra</span>
+            <span>Botao esquerdo: minerar com picareta, atacar com espada ou disparar crossbow</span>
+            <span>C: modo de construcao do quarto</span>
+            <span>I: inventario</span>
+            <span>M: mapa</span>
+            <span>L: lanterna</span>
+            <span>Esc: menu</span>
+          </div>
+          <div class="controls-section">
+            <strong>Celular</strong>
+            <span>Joystick esquerdo: mover</span>
+            <span>Joystick direito ou arrastar na tela: olhar</span>
+            <span>Botao de acao: minerar/interagir/atacar</span>
+            <span>Inv: inventario</span>
+            <span>Mapa: toque no minimapa</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
+  <div id="buildPanel" class="build-panel" aria-hidden="true">
+    <div class="build-header">
+      <div>
+        <strong>Modo Construcao</strong>
+        <span>C abre/fecha | salvo automaticamente no jogo</span>
+      </div>
+      <button id="buildCloseButton" class="panel-close-button" type="button">Fechar</button>
+    </div>
+    <div id="buildSelectionInfo" class="build-selection">Clique num item do quarto para selecionar.</div>
+    <div class="build-toolbar">
+      <button id="buildMoveButton" class="build-mode-button active" type="button">Mover</button>
+      <button id="buildRotateButton" class="build-mode-button" type="button">Girar</button>
+      <button id="buildScaleButton" class="build-mode-button" type="button">Escalar</button>
+    </div>
+    <div class="build-actions">
+      <button id="buildLightingButton" class="build-mode-button" type="button">Luz total: desligada</button>
+      <button id="buildResetSelectedButton" class="button secondary" type="button">Resetar item</button>
+      <button id="buildResetAllButton" class="button secondary" type="button">Resetar quarto</button>
+    </div>
+    <div class="build-slider-group">
+      <label class="build-slider-row">
+        <span>Girar <strong id="buildRotationValue">0°</strong></span>
+        <input id="buildRotationSlider" type="range" min="-180" max="180" step="1" value="0" />
+      </label>
+      <label class="build-slider-row">
+        <span>Tamanho <strong id="buildScaleValue">100%</strong></span>
+        <input id="buildScaleSlider" type="range" min="50" max="150" step="1" value="100" />
+      </label>
+    </div>
+    <p class="build-help">Mover continua com o gizmo no objeto. Para girar e escalar, use os sliders acima. O tamanho pode variar de 50% a 150% do tamanho base. Camera: arraste com esquerdo para orbitar, direito para deslocar, roda para zoom, WASD para navegar, Q/E desce-sobe, R/F aproxima-afasta, Shift acelera, Home recentra.</p>
+  </div>
+
+  <div id="devPanel" class="dev-panel" aria-hidden="true">
+    <div class="dev-header">
+      <div>
+        <strong>Modo Desenvolvedor</strong>
+        <span>F2 abre/fecha | secoes separadas para animacoes, armas, monstros, upgrades e hitboxes</span>
+      </div>
+      <button id="devCloseButton" class="panel-close-button" type="button">Fechar</button>
+    </div>
+    <div id="devSectionNav" class="dev-section-nav" aria-label="Secoes do modo desenvolvedor">
+      <button class="dev-section-button active" type="button" data-dev-section="animations">Animacoes</button>
+      <button class="dev-section-button" type="button" data-dev-section="player">Jogador</button>
+      <button class="dev-section-button" type="button" data-dev-section="weapons">Armas</button>
+      <button class="dev-section-button" type="button" data-dev-section="monsters">Monstros</button>
+      <button class="dev-section-button" type="button" data-dev-section="ores">Minerios</button>
+      <button class="dev-section-button" type="button" data-dev-section="upgrades">Upgrades</button>
+      <button class="dev-section-button" type="button" data-dev-section="hitboxes">Hitboxes</button>
+    </div>
+    <div id="devWeaponWorkspace">
+      <div class="dev-toolbar">
+        <label>
+          Item
+          <select id="devItemSelect">
+            <option value="pickaxe">Picareta</option>
+            <option value="sword">Espada</option>
+            <option value="crossbow">Crossbow</option>
+          </select>
+        </label>
+        <label>
+          Alvo
+          <select id="devTargetSelect">
+            <option value="model">Item / arma</option>
+            <option value="grip">Mao / encaixe</option>
+            <option value="upperArm">Braco</option>
+            <option value="forearm">Antebraco</option>
+          </select>
+        </label>
+        <label>
+          Gizmo
+          <select id="devTransformModeSelect">
+            <option value="translate">Mover</option>
+            <option value="rotate">Girar</option>
+            <option value="scale">Escalar</option>
+          </select>
+        </label>
+        <label>
+          Simulacao
+          <select id="devSimulationSelect">
+            <option value="idle">Parado</option>
+            <option value="pickaxe">Golpe da picareta</option>
+            <option value="sword">Ataque da espada</option>
+            <option value="crossbow">Disparo do crossbow</option>
+          </select>
+        </label>
+      </div>
+      <div class="dev-toolbar">
+        <label>
+          Keyframe
+          <select id="devKeyframeSelect">
+            <option value="0">Inicio</option>
+            <option value="1">Impacto</option>
+            <option value="2">Volta</option>
+          </select>
+        </label>
+        <label>
+          Tempo %
+          <input id="devKeyframeTimeInput" type="number" min="0" max="100" step="1" value="0" />
+        </label>
+        <button id="devPlayPauseButton" class="button secondary" type="button">Play</button>
+        <button id="devCaptureKeyframeButton" class="button secondary" type="button">Gravar keyframe</button>
+        <button id="devAddKeyframeButton" class="button secondary" type="button">Adicionar ponto</button>
+        <button id="devRemoveKeyframeButton" class="button secondary" type="button">Remover ponto</button>
+      </div>
+      <p class="dev-help">Camera do estudio: arraste com esquerdo para orbitar, direito ou Shift + esquerdo para deslocar, roda para aproximar/afastar, duplo clique ou Home para recentrar. WASD move no plano, Q/E desce-sobe, R/F aproxima-afasta pelo teclado, Shift acelera. Posicao usa unidades do modelo; rotacao usa graus. Selecione Alvo + Gizmo para arrastar no 3D. Pause a simulacao, ajuste braco/antebraco/mao e grave keyframes para criar o movimento.</p>
+      <div id="devControls" class="dev-controls"></div>
+    </div>
+    <section id="devHitboxWorkspace" class="dev-section dev-hitbox-section" hidden>
+      <div class="dev-section-title">Hitboxes</div>
+      <div class="dev-toolbar">
+        <label>
+          Elemento
+          <select id="devHitboxObjectSelect"></select>
+        </label>
+        <label>
+          Gizmo
+          <select id="devHitboxTransformModeSelect">
+            <option value="translate">Mover</option>
+            <option value="scale">Escalar</option>
+          </select>
+        </label>
+        <button id="devHitboxResetButton" class="button secondary" type="button">Resetar hitbox</button>
+      </div>
+      <p class="dev-help">No espaco branco, ajuste a caixa real de colisao/interacao do elemento. Mover altera o offset do hitbox; escalar altera largura, altura e profundidade.</p>
+      <div id="devHitboxInfo" class="dev-hitbox-info">Selecione um elemento para editar o hitbox.</div>
+    </section>
+    <section id="devGameplaySection" class="dev-section dev-gameplay-section">
+      <div class="dev-section-title">Valores de jogo</div>
+      <div id="devMonsterToolbar" class="dev-toolbar" hidden>
+        <label>
+          Monstro
+          <select id="devMonsterSelect"></select>
+        </label>
+      </div>
+      <div class="dev-actions">
+        <button id="devGameplayResetButton" class="button secondary" type="button">Resetar valores</button>
+      </div>
+      <p class="dev-help">Ajuste vida do jogador, dano por nivel das armas, vida dos nodes e vida/dano dos monstros. As configuracoes sao persistentes.</p>
+      <div id="devGameplayControls" class="dev-gameplay-controls"></div>
+    </section>
+    <section id="devBalanceSection" class="dev-section dev-balance-section">
+      <div class="dev-section-title">Valores / custos de upgrade</div>
+      <div class="dev-toolbar">
+        <label>
+          Melhoria
+          <select id="devBalanceItemSelect">
+            <option value="pickaxe">Picareta</option>
+            <option value="sword">Espada</option>
+            <option value="crossbow">Crossbow</option>
+            <option value="flashlight">Lanterna</option>
+          </select>
+        </label>
+        <label>
+          Nivel alvo
+          <select id="devBalanceLevelSelect"></select>
+        </label>
+        <button id="devBalanceResetButton" class="button secondary" type="button">Resetar custos</button>
+      </div>
+      <p class="dev-help">Defina quantos minerios cada nivel exige. Use 0 para remover um minerio do custo.</p>
+      <div id="devBalanceControls" class="dev-balance-controls"></div>
+    </section>
+    <div class="dev-actions">
+      <button id="devSaveButton" class="button" type="button">Salvar configuracao</button>
+      <button id="devResetItemButton" class="button secondary" type="button">Resetar item</button>
+      <button id="devResetAllButton" class="button secondary" type="button">Resetar tudo</button>
+    </div>
+    <div id="devStatus" class="dev-status" aria-live="polite">Sem alteracoes salvas nesta sessao.</div>
+  </div>
+
+  <div id="hotbar" aria-label="Barra de itens">
+    <div class="slot slot-empty" data-slot="1"><span class="slot-num">1</span><span class="slot-icon-shell" aria-hidden="true"></span></div>
+    <div class="slot slot-empty" data-slot="2"><span class="slot-num">2</span><span class="slot-icon-shell" aria-hidden="true"></span></div>
+    <div class="slot slot-empty" data-slot="3"><span class="slot-num">3</span><span class="slot-icon-shell" aria-hidden="true"></span></div>
+    <div class="slot slot-empty" data-slot="4"><span class="slot-num">4</span><span class="slot-icon-shell" aria-hidden="true"></span></div>
+    <div class="slot slot-empty" data-slot="5"><span class="slot-num">5</span><span class="slot-icon-shell" aria-hidden="true"></span></div>
+  </div>
+
+  <div id="itemDragGhost" class="item-drag-ghost" hidden></div>
   <div id="crosshair"></div>
 
   <script type="module" src="script.js"></script>

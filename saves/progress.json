@@ -1,0 +1,147 @@
+{
+  "inventoryTotals": {
+    "ferrita": 0,
+    "cobre": 0,
+    "ametista": 0,
+    "safira": 0,
+    "aurio": 0
+  },
+  "chestTotals": {
+    "ferrita": 226,
+    "cobre": 241,
+    "ametista": 256,
+    "safira": 263,
+    "aurio": 135
+  },
+  "itemInventory": {
+    "itemSlots": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "hotbarSlots": [
+      {
+        "id": "item-6",
+        "kind": "sword",
+        "level": 4
+      },
+      {
+        "id": "item-5",
+        "kind": "pickaxe",
+        "level": 3
+      },
+      {
+        "id": "item-7",
+        "kind": "crossbow",
+        "level": 5
+      },
+      null,
+      null
+    ],
+    "equipment": {
+      "head": {
+        "id": "item-8",
+        "kind": "flashlight",
+        "level": 7
+      },
+      "backpack": {
+        "id": "item-24",
+        "kind": "backpack",
+        "level": 2
+      }
+    },
+    "workbenchItem": null
+  },
+  "chestInventory": [
+    {
+      "id": "item-9",
+      "kind": "ore",
+      "oreId": "ferrita",
+      "amount": 226
+    },
+    {
+      "id": "item-10",
+      "kind": "ore",
+      "oreId": "cobre",
+      "amount": 241
+    },
+    {
+      "id": "item-11",
+      "kind": "ore",
+      "oreId": "ametista",
+      "amount": 256
+    },
+    {
+      "id": "item-12",
+      "kind": "ore",
+      "oreId": "safira",
+      "amount": 263
+    },
+    {
+      "id": "item-30",
+      "kind": "ore",
+      "oreId": "aurio",
+      "amount": 135
+    },
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "playerStats": {
+    "pickaxeDamage": 3,
+    "flashlightLevel": 7,
+    "swordLevel": 4,
+    "crossbowLevel": 5,
+    "health": 100
+  },
+  "itemState": {
+    "flashlightOn": true,
+    "equippedSlot": -1
+  },
+  "areaState": {
+    "currentArea": "home",
+    "caveSeed": null
+  },
+  "homeBuildLayout": {
+    "chest": {
+      "x": -1.3311775668163033,
+      "z": -0.017277604322304407,
+      "rotationY": -3.141592653589793,
+      "scale": 1
+    },
+    "upgradeTable": {
+      "x": 1.5226396284206896,
+      "z": -0.4489791254846904,
+      "rotationY": -3.141592653589793,
+      "scale": 1.12
+    }
+  }
+}
